@@ -204,9 +204,39 @@ function progressoDoPlano(file) {
   const proxima = linhas.find(l => /^- \[ \]/.test(l));
   return {
     percent: Math.round((completed / total) * 100), completed, total,
-    activeLabel: proxima ? proxima.replace(/^- \[ \]\s*/, '').replace(/\*\*/g, '').slice(0, 80) : null,
+    activeLabel: proxima
+      ? (rotuloDoProximo(texto) || proxima.replace(/^- \[ \]\s*/, '').replace(/\*\*/g, '').slice(0, 80))
+      : null,
     updatedAt: Date.now(),
   };
+}
+
+// Plano grande (Phase > Task > Step, só os Steps são checkbox) mostrava
+// "Step 1: Write the failing test" — igual em toda Task. O rótulo leva os
+// títulos Phase/Task acima do próximo checkbox: "Phase 1 › Task 2 › Step 1".
+// Pilha por nível de título (título novo descarta os mais fundos); título
+// dentro de bloco ``` é comentário de código, não conta.
+const TITULO_CURTO = /^(phase|task|part|stage|milestone|fase|etapa|tarefa)\s+[\w.-]+/i;
+function rotuloDoProximo(texto) {
+  const pilha = [];
+  let emCodigo = false;
+  for (const linha of texto.split(/\r?\n/)) {
+    if (/^\s*```/.test(linha)) { emCodigo = !emCodigo; continue; }
+    if (emCodigo) continue;
+    const titulo = linha.match(/^(#{1,6})\s+(.*)$/);
+    if (titulo) {
+      const nivel = titulo[1].length;
+      while (pilha.length && pilha[pilha.length - 1].nivel >= nivel) pilha.pop();
+      pilha.push({ nivel, texto: titulo[2] });
+      continue;
+    }
+    if (/^- \[ \]/.test(linha)) {
+      const passo = linha.replace(/^- \[ \]\s*/, '').replace(/\*\*/g, '');
+      const onde = pilha.map(t => (t.texto.replace(/[`*]/g, '').match(TITULO_CURTO) || [])[0]).filter(Boolean);
+      return [...onde, passo].join(' › ').slice(0, 100);
+    }
+  }
+  return null;
 }
 
 // Plano que atravessa repos (2026-09-23, ex: plano em app-backend,

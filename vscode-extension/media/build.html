@@ -506,12 +506,17 @@ function renderReator(projetos, currentProject) {
   segs.forEach((s, i) => s.classList.toggle('lit', i < lit));
 
   document.getElementById('pct').textContent = pct + '%';
+  // Sem plano ativo (nenhum, ou fechado com trabalho depois): "0 / 0 steps ·
+  // system idle" parecia parado com o Claude trabalhando. Diz que não há
+  // plano e mostra o arquivo ativo, como o card do projeto já faz.
+  const arquivo = alvo && alvo.activity && alvo.activity[0] && alvo.activity[0].file;
   document.getElementById('steps').textContent = expirado
-    ? '0 / 0 steps'
+    ? 'no active plan'
     : `${progress.completed || 0} / ${progress.total || 0} steps`;
-  document.getElementById('reactorLabel').innerHTML = (!expirado && progress.activeLabel)
-    ? `building: <b>${escapeHtml(progress.activeLabel)}</b>`
-    : (!expirado && progress.total ? 'task complete' : 'system idle');
+  document.getElementById('reactorLabel').innerHTML = expirado
+    ? (arquivo ? `active: <b>${escapeHtml(arquivo)}</b>` : 'system idle')
+    : (progress.activeLabel ? `building: <b>${escapeHtml(progress.activeLabel)}</b>`
+      : (progress.total ? 'task complete' : 'system idle'));
 }
 
 // ── Saúde e sinais ────────────────────────────────────────────────────
