@@ -646,4 +646,4 @@ git commit -m "docs: group-by-origin in README and CHANGELOG"
 git push origin main
 ```
 
-- [ ] **Step 5: Real check** — after a VS Code window reload, the Communication-Intelligence projects show as one group card; folding survives another reload (screenshot from Nik).
+- [x] **Step 5: Real check** — after a VS Code window reload, the Communication-Intelligence projects show as one group card; folding survives another reload (screenshot from Nik).
