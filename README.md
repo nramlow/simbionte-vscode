@@ -56,7 +56,7 @@ Claude Code.
 
 ### What the extension changes on your computer
 
-Step 2 (and only step 2 — the extension never changes anything on its own):
+Step 2 (and only step 2 — the extension never installs anything on its own):
 
 - copies 4 files to `~/.claude/`: `progress-hook.js`, `activity-hook.js`,
   `estado-hook.js` and `simbionte-store.js`;
@@ -77,6 +77,11 @@ Step 2 (and only step 2 — the extension never changes anything on its own):
 
 Running the command again is safe: it updates the files and only adds what's
 missing, without duplicating.
+
+After an extension update, Symbiont refreshes its own 4 files in
+`~/.claude/` when they differ from the new version, and tells you which ones
+it updated. It does this only if the hooks are already installed, and never
+changes `settings.json`; after **Remove** it leaves `~/.claude/` alone.
 
 ### Remove / revert
 

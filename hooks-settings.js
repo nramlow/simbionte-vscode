@@ -57,4 +57,14 @@ function removerHooks(settings) {
   return settings;
 }
 
-module.exports = { HOOKS, ARQUIVOS, hooksFaltando, adicionarHooks, removerHooks };
+// Quais arquivos instalados em ~/.claude diferem da versão empacotada
+// (conteúdo por arquivo; null = não existe). Antes, atualizar a extensão não
+// atualizava os hooks: fix no store só chegava a quem rodasse "Install
+// hooks" de novo. Só vale pra quem já instalou (algum hook nosso no
+// settings.json) — quem nunca instalou ou removeu não ganha arquivo sozinho.
+function arquivosDesatualizados(settings, empacotado, instalado) {
+  if (hooksFaltando(settings).length === HOOKS.length) return [];
+  return ARQUIVOS.filter(f => empacotado[f] != null && empacotado[f] !== instalado[f]);
+}
+
+module.exports = { HOOKS, ARQUIVOS, hooksFaltando, adicionarHooks, removerHooks, arquivosDesatualizados };

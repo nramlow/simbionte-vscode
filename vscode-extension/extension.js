@@ -13,13 +13,45 @@ let progressoDoPlano = () => null, resumoSessoes = () => null;
 try {
   ({ progressoDoPlano, resumoSessoes } = require('./lib/store.js'));
 } catch (e) { /* rodando do repo sem prepare.js — cai pro cache do hook */ }
-const { ARQUIVOS, hooksFaltando, adicionarHooks, removerHooks } = require('./lib/hooks-settings.js');
+const { ARQUIVOS, hooksFaltando, adicionarHooks, removerHooks, arquivosDesatualizados } = require('./lib/hooks-settings.js');
 
 const CLAUDE_DIR = path.join(os.homedir(), '.claude');
 const SETTINGS_PATH = path.join(CLAUDE_DIR, 'settings.json');
 function lerSettings() {
   try { return JSON.parse(fs.readFileSync(SETTINGS_PATH, 'utf8')); }
   catch (e) { return e.code === 'ENOENT' ? {} : null; } // null = JSON inválido, não sobrescrever
+}
+
+// Os hooks fazem require('./simbionte-store') — o store vai como irmão.
+function origemEmpacotada(extensionUri, f) {
+  const lib = vscode.Uri.joinPath(extensionUri, 'lib').fsPath;
+  return f === 'simbionte-store.js' ? path.join(lib, 'store.js') : path.join(lib, 'hooks', f);
+}
+
+// Extensão atualizada não atualizava os hooks em ~/.claude (fix no store só
+// chegava a quem rodasse "Install hooks" de novo). Na ativação, se os hooks
+// já estão instalados, troca os arquivos que mudaram — nunca o settings.json.
+// Cópia em .tmp + rename: um hook rodando agora nunca carrega meio arquivo.
+// Falhou (arquivo ocupado)? Fica pra próxima ativação.
+function atualizarArquivosInstalados(extensionUri, settings) {
+  const ler = p => { try { return fs.readFileSync(p, 'utf8'); } catch (e) { return null; } };
+  const empacotado = {}, instalado = {};
+  for (const f of ARQUIVOS) {
+    empacotado[f] = ler(origemEmpacotada(extensionUri, f));
+    instalado[f] = ler(path.join(CLAUDE_DIR, f));
+  }
+  const trocados = [];
+  for (const f of arquivosDesatualizados(settings, empacotado, instalado)) {
+    const destino = path.join(CLAUDE_DIR, f);
+    try {
+      fs.copyFileSync(origemEmpacotada(extensionUri, f), `${destino}.tmp`);
+      fs.renameSync(`${destino}.tmp`, destino);
+      trocados.push(f);
+    } catch (e) {
+      try { fs.unlinkSync(`${destino}.tmp`); } catch (e2) { /* nem chegou a criar */ }
+    }
+  }
+  return trocados;
 }
 
 // Copia hooks + store pra ~/.claude e registra em settings.json. Idempotente:
@@ -38,13 +70,8 @@ async function instalarHooks(extensionUri) {
     { modal: true }, 'Install');
   if (ok !== 'Install') return;
 
-  const lib = vscode.Uri.joinPath(extensionUri, 'lib').fsPath;
   fs.mkdirSync(CLAUDE_DIR, { recursive: true });
-  for (const f of ARQUIVOS) {
-    // Os hooks fazem require('./simbionte-store') — o store vai como irmão.
-    const origem = f === 'simbionte-store.js' ? path.join(lib, 'store.js') : path.join(lib, 'hooks', f);
-    fs.copyFileSync(origem, path.join(CLAUDE_DIR, f));
-  }
+  for (const f of ARQUIVOS) fs.copyFileSync(origemEmpacotada(extensionUri, f), path.join(CLAUDE_DIR, f));
 
   if (faltando.length) {
     // .bak só na 1ª vez: guarda o settings de ANTES do Simbionte. Sobrescrever
@@ -361,6 +388,10 @@ function activate(context) {
   // Sem hooks o painel fica vazio pra sempre; com hooks da 1.0.x o watchdog
   // não distingue "esperando você" de "travou". Avisa uma vez por sessão.
   const settings = lerSettings();
+  const trocados = atualizarArquivosInstalados(context.extensionUri, settings);
+  if (trocados.length) {
+    vscode.window.showInformationMessage(`Symbiont: updated ${trocados.join(', ')} in ${CLAUDE_DIR} to match this version.`);
+  }
   const faltando = settings ? hooksFaltando(settings) : [];
   if (faltando.length) {
     const nenhum = faltando.length === hooksFaltando({}).length;
