@@ -1,0 +1,70 @@
+// Origem de um projeto: de qual repositório ele vem. Worktrees e sub-pastas
+// com package.json viram projetos separados no painel; a origem junta de
+// volta os que são do mesmo repo (ou do mesmo remoto, em outro clone). Lê
+// os arquivos do git direto — nunca roda `git` (sem janela de console no
+// Windows, sem depender do PATH).
+const fs = require('fs');
+const path = require('path');
+
+// https://user@host/a/b.git, ssh://git@host:22/a/b, git@host:a/b.git ->
+// host/a/b. Formas diferentes do mesmo remoto precisam colidir.
+function normalizarUrl(url) {
+  let u = String(url || '').trim().toLowerCase();
+  if (!u) return null;
+  const temEsquema = /^[a-z][a-z0-9+.-]*:\/\//.test(u);
+  u = u.replace(/^[a-z][a-z0-9+.-]*:\/\//, '').replace(/^[^@/]+@/, '');
+  u = temEsquema ? u.replace(/^([^/:]+):\d+\//, '$1/') : u.replace(/^([^/:]+):/, '$1/');
+  return u.replace(/\/+$/, '').replace(/\.git$/, '');
+}
+
+// Sobe até o primeiro .git. Pasta = repo comum; arquivo = worktree (ou
+// submódulo), que aponta pro gitdir dele; worktree tem `commondir` levando
+// ao .git do repo principal. raiz = pasta do checkout principal.
+function gitDe(projectPath) {
+  let dir = path.resolve(projectPath);
+  if (!fs.existsSync(dir)) return null;
+  for (;;) {
+    const ponto = path.join(dir, '.git');
+    let st = null;
+    try { st = fs.statSync(ponto); } catch (e) { /* não tem aqui, sobe */ }
+    if (st && st.isDirectory()) return { comum: ponto, raiz: dir };
+    if (st && st.isFile()) {
+      const m = fs.readFileSync(ponto, 'utf8').match(/^gitdir:\s*(.+?)\s*$/m);
+      if (!m) return null;
+      const gitdir = path.resolve(dir, m[1]);
+      try {
+        const comum = path.resolve(gitdir, fs.readFileSync(path.join(gitdir, 'commondir'), 'utf8').trim());
+        return { comum, raiz: path.dirname(comum) };
+      } catch (e) {
+        return { comum: gitdir, raiz: dir }; // submódulo: sem commondir
+      }
+    }
+    const pai = path.dirname(dir);
+    if (pai === dir) return null;
+    dir = pai;
+  }
+}
+
+function urlDaOrigem(gitComum) {
+  let texto;
+  try { texto = fs.readFileSync(path.join(gitComum, 'config'), 'utf8'); } catch (e) { return null; }
+  let naOrigem = false;
+  for (const linha of texto.split(/\r?\n/)) {
+    const secao = linha.match(/^\s*\[(.+)\]\s*$/);
+    if (secao) { naOrigem = /^remote\s+"origin"$/i.test(secao[1].trim()); continue; }
+    const url = naOrigem && linha.match(/^\s*url\s*=\s*(.+?)\s*$/i);
+    if (url) return url[1];
+  }
+  return null;
+}
+
+function origemDoProjeto(projectPath) {
+  if (!projectPath) return null;
+  const git = gitDe(projectPath);
+  if (!git) return null;
+  const chave = normalizarUrl(urlDaOrigem(git.comum))
+    || (process.platform === 'win32' ? git.comum.toLowerCase() : git.comum);
+  return { chave, raiz: git.raiz };
+}
+
+module.exports = { normalizarUrl, origemDoProjeto };
