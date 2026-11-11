@@ -15,6 +15,20 @@ try {
 } catch (e) { /* rodando do repo sem prepare.js — cai pro cache do hook */ }
 const { ARQUIVOS, hooksFaltando, adicionarHooks, removerHooks, arquivosDesatualizados } = require('./lib/hooks-settings.js');
 
+// Agrupa os cards por repo de origem (worktrees, sub-pastas, outro clone).
+// Cache por caminho: a origem de uma pasta não muda durante a sessão, e o
+// painel reenvia a lista a cada 5s.
+let agruparProjetos = projetos => projetos;
+try {
+  const origem = require('./lib/origem.js');
+  const cache = new Map();
+  const origemMemo = p => {
+    if (!cache.has(p)) cache.set(p, origem.origemDoProjeto(p));
+    return cache.get(p);
+  };
+  agruparProjetos = projetos => origem.agruparProjetos(projetos, origemMemo);
+} catch (e) { /* rodando do repo sem prepare.js — cards sem grupo, como antes */ }
+
 const CLAUDE_DIR = path.join(os.homedir(), '.claude');
 const SETTINGS_PATH = path.join(CLAUDE_DIR, 'settings.json');
 function lerSettings() {
@@ -270,7 +284,7 @@ class SimbiontePainelProvider {
     };
     const enviar = () => {
       const atual = projetoAtual();
-      const projetos = lerTodosProjetos(atual);
+      const projetos = agruparProjetos(lerTodosProjetos(atual));
       checarTransicoes(projetos);
       // Achado 2026-09-23: o banner lia um estado recalculado pelo timer de
       // 60s e ficava na tela até um minuto DEPOIS de os hooks voltarem.
