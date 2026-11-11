@@ -157,8 +157,8 @@ descobertas sozinhas (`*.test.js` na raiz e `test/*.js`). Dependência
 ausente (ex.: `playwright` no teste visual) aparece como `PULADO:`, não
 como falha. `test.js` sobe uma instância isolada na porta 4577.
 
-Alguns testes chamam os hooks instalados em `~/.claude/` — o CI copia antes
-(ver `.github/workflows/ci.yml`).
+Os testes de hook rodam a fonte do repo (`claude-hooks/` + `store.js`) num
+HOME temporário — não precisam dos hooks instalados em `~/.claude/`.
 
 ## Licença
 

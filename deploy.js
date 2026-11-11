@@ -57,8 +57,8 @@ passo('sincronizando hooks pra ~/.claude', () => {
   // store.js mora na raiz (o servidor e a extensão também o usam), mas os
   // hooks o requerem como irmão — `require('./simbionte-store')`. Vai com o
   // nome antigo de propósito: é como a cópia instalada sempre se chamou, e
-  // test_lock_race.js monta esse caminho em runtime pra testar o lock em
-  // dois processos. Renomear quebraria aquele teste sem ganhar nada.
+  // é o nome que extension.js e hooks-settings.js esperam. Renomear
+  // quebraria instalações existentes sem ganhar nada.
   //
   // Achado 2026-09-23: a cópia instalada chegou a ficar MAIS NOVA que a
   // fonte (tinha o fix de sub-projeto de 2026-09-02 que o repo não tinha).

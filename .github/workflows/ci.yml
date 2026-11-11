@@ -8,6 +8,4 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 20
-      # Alguns testes chamam os hooks instalados em ~/.claude, como na máquina real.
-      - run: mkdir -p ~/.claude && cp claude-hooks/*.js ~/.claude/ && cp store.js ~/.claude/simbionte-store.js
       - run: node test-all.js
