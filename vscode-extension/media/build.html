@@ -171,6 +171,23 @@
   .status-pct{flex:none;color:var(--dim);font-size:var(--fs-xs);font-variant-numeric:tabular-nums;min-width:2.4em;text-align:right;}
   .status-warn{flex:none;color:var(--vermelho);display:flex;}
 
+  /* card de grupo: vários projetos da mesma origem (worktrees, sub-pastas,
+     outro clone) num card só, dobrável. Linhas de membro são compactas. */
+  .status-grupo{background:var(--glass);border:1px solid var(--edge);border-radius:var(--r-lg);
+    margin-bottom:var(--sp-2);font-size:var(--fs-xs);box-shadow:var(--shadow-1);overflow:hidden;}
+  .status-grupo.atual{border-color:var(--edge-hi);background:var(--glass-hi);box-shadow:var(--shadow-2);}
+  .status-grupo.atual .grupo-cabeca .status-nome{font-size:var(--fs-lg);}
+  .grupo-cabeca{display:flex;align-items:center;gap:var(--sp-2);padding:var(--sp-2) var(--sp-3);cursor:pointer;}
+  .grupo-seta{flex:none;color:var(--dim);font-size:var(--fs-sm);width:1em;text-align:center;transition:color .15s;}
+  .grupo-cabeca:hover .grupo-seta{color:var(--teal);}
+  .grupo-membros{border-top:1px solid var(--edge);padding:var(--sp-1) 0;}
+  .grupo-membro{display:flex;align-items:center;gap:var(--sp-2);position:relative;
+    padding:var(--sp-1) var(--sp-3) var(--sp-1) calc(var(--sp-3) + 6px);}
+  .grupo-membro .status-nome{font-size:var(--fs-xs);}
+  .grupo-membro .status-dot{width:7px;height:7px;}
+  .grupo-membro.atual{background:var(--glass-hi);}
+  .grupo-membro.clickable:hover{background:rgba(63,232,196,.06);}
+
   .proj-item{background:var(--glass);border:1px solid var(--edge);border-radius:var(--r-lg);
     padding:var(--sp-2) var(--sp-3);margin-bottom:var(--sp-2);font-size:var(--fs-xs);box-shadow:var(--shadow-1);}
   .proj-nome{color:var(--text);font-weight:600;}
@@ -178,9 +195,9 @@
 
   .clickable{cursor:pointer;padding-right:30px;}
   .clickable::after{content:"";position:absolute;right:var(--sp-3);top:50%;width:9px;height:9px;
-    transform:translateY(-50%) rotate(-45deg);border-right:1.6px solid var(--dim);border-top:1.6px solid var(--dim);
+    transform:translateY(-50%) rotate(45deg);border-right:1.6px solid var(--dim);border-top:1.6px solid var(--dim);
     transition:border-color .15s,transform .15s;}
-  .clickable:hover::after{border-color:var(--teal);transform:translateY(-50%) rotate(-45deg) translateX(2px);}
+  .clickable:hover::after{border-color:var(--teal);transform:translateY(-50%) rotate(45deg) translateX(2px);}
   .clickable:active{transform:scale(.985);}
 
   /* ajuste estrutural por largura do container (sidebar primária, secundária,
@@ -288,7 +305,99 @@ function corRecencia(ts) {
   return 'vermelho';
 }
 
+const ehAtual = (p, currentProject) => p.projectId === currentProject || p.projectName === currentProject;
+const normCaminho = s => String(s || '').replace(/\\/g, '/').replace(/\/+$/, '').toLowerCase();
+const avisoBash = () => `<span class="status-warn" title="checkbox edited via Bash — use Edit/Write instead">${ICON_WARN}</span>`;
+
+function cardProjeto(p, currentProject, primeiro) {
+  const progress = progressoEfetivo(p);
+  const ultima = ultimaAtividade(p);
+  const cor = corRecencia(ultima);
+  // só a linha #0 (mais recente de todo o painel) pulsa — ver @keyframes
+  // respirar: 1 sinal de "ao vivo" por vez, não uma parede piscando.
+  const pulsa = primeiro && cor === 'verde';
+  const barra = progress
+    ? `<div class="status-bar-wrap">
+        <div class="status-bar"><div class="status-bar-fill" style="transform:scaleX(${(progress.percent || 0) / 100})"></div></div>
+        <span class="status-pct">${progress.percent || 0}%</span>
+      </div>`
+    : '';
+  const aviso = (p.progress && p.progress.viaBash) ? avisoBash() : '';
+  // path do clique é o arquivo mais recente tocado (mesmo comportamento
+  // do reactor de antes: abre o que você tava fazendo, não a pasta) — a
+  // extensão ainda tenta a URL mapeada (simbionte-urls.json) primeiro,
+  // no lado do host, então isso funciona pra apps web também.
+  const arquivoRecente = (p.activity && p.activity[0]) ? p.activity[0].path : '';
+  return `
+    <div class="status-row${ehAtual(p, currentProject) ? ' atual' : ''} clickable"
+         data-project-id="${escapeHtml(p.projectId || '')}"
+         data-path="${escapeHtml(arquivoRecente)}"
+         tabindex="0" role="button">
+      <div class="status-dot ${cor}${pulsa ? ' pulso' : ''}"></div>
+      <div class="status-body">
+        <div class="status-nome">${escapeHtml(p.projectName)} <span class="status-tempo">${tempoRelativo(ultima)}</span></div>
+        <div class="status-info">${infoLinha(p)}</div>
+        ${barra}
+      </div>
+      ${aviso}
+    </div>`;
+}
+
+function linhaMembro(p, currentProject, nome) {
+  const progress = progressoEfetivo(p);
+  const ultima = ultimaAtividade(p);
+  const arquivoRecente = (p.activity && p.activity[0]) ? p.activity[0].path : '';
+  return `
+    <div class="grupo-membro${ehAtual(p, currentProject) ? ' atual' : ''} clickable"
+         data-project-id="${escapeHtml(p.projectId || '')}"
+         data-path="${escapeHtml(arquivoRecente)}"
+         tabindex="0" role="button">
+      <div class="status-dot ${corRecencia(ultima)}"></div>
+      <div class="status-body">
+        <div class="status-nome">${escapeHtml(nome)} <span class="status-tempo">${tempoRelativo(ultima)}</span></div>
+        <div class="status-info">${infoLinha(p)}</div>
+      </div>
+      ${progress ? `<span class="status-pct">${progress.percent || 0}%</span>` : ''}
+      ${(p.progress && p.progress.viaBash) ? avisoBash() : ''}
+    </div>`;
+}
+
+function cardGrupo(g, currentProject, primeiro) {
+  const novo = g.membros[0];
+  const ultima = ultimaAtividade(novo);
+  const cor = corRecencia(ultima);
+  const pulsa = primeiro && cor === 'verde';
+  const dobrado = !!dobrados[g.chave];
+  const raiz = normCaminho(novo.grupo.raiz);
+  const nomeDe = p => (raiz && normCaminho(p.projectPath) === raiz) ? 'main checkout' : p.projectName;
+  const aviso = g.membros.some(p => p.progress && p.progress.viaBash) ? avisoBash() : '';
+  const resumo = dobrado
+    ? `<div class="status-info">${g.membros.length} projects · ${escapeHtml(nomeDe(novo))}: ${infoLinha(novo)}</div>`
+    : '';
+  const membros = dobrado
+    ? ''
+    : `<div class="grupo-membros">${g.membros.map(p => linhaMembro(p, currentProject, nomeDe(p))).join('')}</div>`;
+  return `
+    <div class="status-grupo${g.membros.some(p => ehAtual(p, currentProject)) ? ' atual' : ''}">
+      <div class="grupo-cabeca" data-grupo="${escapeHtml(g.chave)}" tabindex="0" role="button" aria-expanded="${!dobrado}">
+        <div class="status-dot ${cor}${pulsa ? ' pulso' : ''}"></div>
+        <div class="status-body">
+          <div class="status-nome">${escapeHtml(novo.grupo.nome)} <span class="status-tempo">${tempoRelativo(ultima)}</span></div>
+          ${resumo}
+        </div>
+        ${aviso}
+        <span class="grupo-seta" aria-hidden="true">${dobrado ? '▸' : '▾'}</span>
+      </div>
+      ${membros}
+    </div>`;
+}
+
+// Agrupamento por origem (origem.js, lado da extensão): cada projeto chega
+// com grupo.chave. Repo com 1 projeto fica com o card de sempre; 2+ viram
+// um card de grupo dobrável. Grupos na ordem do membro mais recente.
+let ultimoStatus = null;
 function renderStatusList(projetos, currentProject) {
+  ultimoStatus = [projetos, currentProject];
   const list = document.getElementById('statusList');
   const count = document.getElementById('statusCount');
   if (!projetos.length) {
@@ -298,42 +407,16 @@ function renderStatusList(projetos, currentProject) {
   }
   const ordenados = projetos.slice().sort((a, b) => ultimaAtividade(b) - ultimaAtividade(a));
   count.textContent = String(ordenados.length);
-  list.innerHTML = ordenados.map((p, i) => {
-    const ehAtual = p.projectId === currentProject || p.projectName === currentProject;
-    const progress = progressoEfetivo(p);
-    const ultima = ultimaAtividade(p);
-    const tempo = tempoRelativo(ultima);
-    const cor = corRecencia(ultima);
-    // só a linha #0 (mais recente de todo o painel) pulsa — ver @keyframes
-    // respirar: 1 sinal de "ao vivo" por vez, não uma parede piscando.
-    const pulsa = i === 0 && cor === 'verde';
-    const barra = progress
-      ? `<div class="status-bar-wrap">
-          <div class="status-bar"><div class="status-bar-fill" style="transform:scaleX(${(progress.percent || 0) / 100})"></div></div>
-          <span class="status-pct">${progress.percent || 0}%</span>
-        </div>`
-      : '';
-    const aviso = (p.progress && p.progress.viaBash)
-      ? `<span class="status-warn" title="checkbox edited via Bash — use Edit/Write instead">${ICON_WARN}</span>` : '';
-    // path do clique é o arquivo mais recente tocado (mesmo comportamento
-    // do reactor de antes: abre o que você tava fazendo, não a pasta) — a
-    // extensão ainda tenta a URL mapeada (simbionte-urls.json) primeiro,
-    // no lado do host, então isso funciona pra apps web também.
-    const arquivoRecente = (p.activity && p.activity[0]) ? p.activity[0].path : '';
-    return `
-      <div class="status-row${ehAtual ? ' atual' : ''} clickable"
-           data-project-id="${escapeHtml(p.projectId || '')}"
-           data-path="${escapeHtml(arquivoRecente)}"
-           tabindex="0" role="button">
-        <div class="status-dot ${cor}${pulsa ? ' pulso' : ''}"></div>
-        <div class="status-body">
-          <div class="status-nome">${escapeHtml(p.projectName)} <span class="status-tempo">${tempo}</span></div>
-          <div class="status-info">${infoLinha(p)}</div>
-          ${barra}
-        </div>
-        ${aviso}
-      </div>`;
-  }).join('');
+  const grupos = [];
+  const porChave = new Map();
+  for (const p of ordenados) {
+    const chave = (p.grupo && p.grupo.chave) || `projeto:${p.projectId}`;
+    if (!porChave.has(chave)) { porChave.set(chave, { chave, membros: [] }); grupos.push(porChave.get(chave)); }
+    porChave.get(chave).membros.push(p);
+  }
+  list.innerHTML = grupos.map((g, i) => g.membros.length === 1
+    ? cardProjeto(g.membros[0], currentProject, i === 0)
+    : cardGrupo(g, currentProject, i === 0)).join('');
 }
 
 function hojeLocal() {
@@ -538,6 +621,16 @@ function render(projetos, currentProject, sessao, insights) {
 
 const vscode = acquireVsCodeApi();
 
+// Dobra por grupo, salva no estado do webview (sobrevive a reload).
+let dobrados = (vscode.getState() || {}).dobrados || {};
+function alternarGrupo(chave) {
+  dobrados = { ...dobrados, [chave]: !dobrados[chave] };
+  vscode.setState({ ...(vscode.getState() || {}), dobrados });
+  if (ultimoStatus) renderStatusList(...ultimoStatus);
+  const cabeca = document.querySelector(`[data-grupo="${CSS.escape(chave)}"]`);
+  if (cabeca) cabeca.focus(); // re-render troca o DOM; teclado não perde o lugar
+}
+
 function abrirLinha(item) {
   if (!item) return;
   vscode.postMessage({
@@ -546,15 +639,17 @@ function abrirLinha(item) {
     path: item.dataset.path || null,
   });
 }
-document.getElementById('statusList').addEventListener('click', (ev) => {
-  abrirLinha(ev.target.closest('.status-row'));
-});
+function acaoDaLista(alvo) {
+  const cabeca = alvo.closest('.grupo-cabeca');
+  if (cabeca) return alternarGrupo(cabeca.dataset.grupo);
+  abrirLinha(alvo.closest('.status-row, .grupo-membro'));
+}
+document.getElementById('statusList').addEventListener('click', (ev) => acaoDaLista(ev.target));
 document.getElementById('statusList').addEventListener('keydown', (ev) => {
   if (ev.key !== 'Enter' && ev.key !== ' ') return;
-  const item = ev.target.closest('.status-row');
-  if (!item) return;
+  if (!ev.target.closest('.grupo-cabeca, .status-row, .grupo-membro')) return;
   ev.preventDefault();
-  abrirLinha(item);
+  acaoDaLista(ev.target);
 });
 
 window.addEventListener('message', (ev) => {
