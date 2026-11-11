@@ -10,6 +10,7 @@ Symbiont: English fork of [Simbionte](https://github.com/dragonfurioso35-art/sim
 - Internal IDs and file names keep the original `simbionte` spelling, so existing installs and settings keep working.
 - Projects from the same git origin (worktrees, sub-folders with their own `package.json`, other clones of the same remote) are grouped into one collapsible card. A repo with a single project looks as before.
 - The "open" arrow on cards points right instead of up (it read as "collapse").
+- Fix: the "checkbox edited via Bash" warning no longer fires when nothing was ticked — e.g. the first time a plan shows up in a command like `cat` or `git add`, or when only the plan's item count changed. Warnings recorded that way clear on the plan's next update.
 - Updating the extension now refreshes its hook files in `~/.claude/` when they're out of date (only if the hooks are installed; `settings.json` is never touched). Before, fixes to the hooks only arrived after running **Install Claude Code hooks** again.
 - Fix: on Windows, a hook update could be lost when the panel was reading the same file at that moment (the atomic rename failed with EPERM and left a `.json.tmp` behind). The rename now retries for up to about 200 ms.
 

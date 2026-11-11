@@ -169,10 +169,15 @@ function renomearComRetry(origem, destino) {
 // arquivo) caía na trava e acendia o aviso, sem checkbox nenhum mudar — o
 // painel ficou com ⚠ em todo projeto trabalhado. Bash só acende o aviso se
 // o progresso mudou; sem mudança, mantém o aviso como estava. Edit apaga.
+// Achado 2026-11-11: ainda sobrava falso alarme — plano visto pela 1ª vez
+// num Bash (sem `anterior` pra comparar) e plano reescrito por script (só o
+// total mudou) acendiam o aviso com 0 checkbox marcado. Agora só conta
+// checkbox marcado: nada marcado = sem aviso (apaga também os gravados antes
+// deste fix); sem anterior = avisa só se já tem item marcado.
 function viaBashNovo(anterior, progress, origem) {
-  if (origem !== 'bash') return false;
-  const mesmo = !!(anterior && progress && anterior.completed === progress.completed && anterior.total === progress.total);
-  return mesmo ? !!anterior.viaBash : true;
+  if (origem !== 'bash' || !progress || !progress.completed) return false;
+  if (!anterior) return true;
+  return anterior.completed !== progress.completed ? true : !!anterior.viaBash;
 }
 
 function atualizarProgresso(projectId, projectName, progress, projectPath, origem) {
