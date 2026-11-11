@@ -18,7 +18,7 @@
 - Create: `origem.js`
 - Test: `test/test_origem.js`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 `test/test_origem.js`:
 
@@ -93,12 +93,12 @@ try {
 
 (`agruparProjetos` is imported now and exercised in Task 2.)
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `node test/test_origem.js`
 Expected: FAIL with `Cannot find module '../origem.js'`
 
-- [ ] **Step 3: Write minimal implementation**
+- [x] **Step 3: Write minimal implementation**
 
 `origem.js`:
 
@@ -175,12 +175,12 @@ function origemDoProjeto(projectPath) {
 module.exports = { normalizarUrl, origemDoProjeto };
 ```
 
-- [ ] **Step 4: Run test to verify it passes**
+- [x] **Step 4: Run test to verify it passes**
 
 Run: `node test/test_origem.js`
 Expected: `OK: origem do projeto (worktree, sub-pasta, clone ssh, sem origin, fora do git)`
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add origem.js test/test_origem.js
@@ -193,7 +193,7 @@ git commit -m "feat: origem.js works out which repo a project comes from"
 - Modify: `origem.js` (add function, export)
 - Test: `test/test_origem.js` (add assertions inside the `try`, before the `console.log`)
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Insert before `console.log('OK: origem do projeto …')` in `test/test_origem.js`:
 
@@ -218,12 +218,12 @@ Insert before `console.log('OK: origem do projeto …')` in `test/test_origem.js
   assert.strictEqual(chamadas, 1, 'origemDe é injetável (a extensão passa uma versão com cache)');
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `node test/test_origem.js`
 Expected: FAIL with `agruparProjetos is not a function`
 
-- [ ] **Step 3: Write minimal implementation**
+- [x] **Step 3: Write minimal implementation**
 
 Add to `origem.js` above `module.exports`, and export it:
 
@@ -254,12 +254,12 @@ function agruparProjetos(projetos, origemDe = origemDoProjeto) {
 module.exports = { normalizarUrl, origemDoProjeto, agruparProjetos };
 ```
 
-- [ ] **Step 4: Run test to verify it passes**
+- [x] **Step 4: Run test to verify it passes**
 
 Run: `node test/test_origem.js`
 Expected: `OK: origem do projeto …`
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add origem.js test/test_origem.js
@@ -272,7 +272,7 @@ git commit -m "feat: agruparProjetos tags each project with its origin group"
 - Modify: `vscode-extension/prepare.js:12` (copy `origem.js` into `lib/`)
 - Modify: `vscode-extension/extension.js` (require + memo near the other `require('./lib/…')`; tag in `enviar`)
 
-- [ ] **Step 1: Copy `origem.js` into the package**
+- [x] **Step 1: Copy `origem.js` into the package**
 
 In `vscode-extension/prepare.js`, change the list:
 
@@ -280,7 +280,7 @@ In `vscode-extension/prepare.js`, change the list:
 for (const f of ['scan-store.js', 'insights.js', 'data.js', 'store.js', 'hooks-settings.js', 'origem.js']) {
 ```
 
-- [ ] **Step 2: Require it with a cache**
+- [x] **Step 2: Require it with a cache**
 
 In `vscode-extension/extension.js`, after the `require('./lib/hooks-settings.js')` line:
 
@@ -300,7 +300,7 @@ try {
 } catch (e) { /* rodando do repo sem prepare.js — cards sem grupo, como antes */ }
 ```
 
-- [ ] **Step 3: Tag the list before posting**
+- [x] **Step 3: Tag the list before posting**
 
 In `enviar` inside `resolveWebviewView`, change
 
@@ -314,12 +314,12 @@ to
       const projetos = agruparProjetos(lerTodosProjetos(atual));
 ```
 
-- [ ] **Step 4: Verify**
+- [x] **Step 4: Verify**
 
 Run: `node vscode-extension/prepare.js && node --check vscode-extension/extension.js && ls vscode-extension/lib/origem.js`
 Expected: `lib/ pronta`, no syntax error, the file listed.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add vscode-extension/prepare.js vscode-extension/extension.js
@@ -332,7 +332,7 @@ git commit -m "feat(extension): tag projects with their origin group before post
 - Modify: `vscode-extension/media/build.html` (CSS after `.status-warn`; arrow fix in `.clickable::after`; `renderStatusList`; click/keydown handlers; fold state after `const vscode = acquireVsCodeApi();`)
 - Test: `test/test_grupos_painel.js`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 `test/test_grupos_painel.js`:
 
@@ -352,6 +352,7 @@ const script = html.match(/<script>([\s\S]*)<\/script>/)[1];
 const elementos = {};
 const elemento = () => ({
   innerHTML: '', textContent: '', hidden: false, title: '', style: {}, dataset: {},
+  classList: { add() {}, remove() {}, toggle() {} },
   addEventListener() {}, appendChild() {}, setAttribute() {}, querySelector() { return null; },
   querySelectorAll() { return []; }, focus() {},
 });
@@ -393,17 +394,17 @@ assert.ok(out.indexOf('status-grupo') < out.indexOf('status-row'), 'grupo mais r
 assert.ok(out.includes('>Communication-Intelligence <span'), 'cabeçalho com o nome do repo');
 assert.ok(out.includes('main checkout'), 'checkout principal aparece como "main checkout" (caminho com outra caixa/barra)');
 assert.ok(out.includes('active: formDirty.ts'));
-assert.strictEqual((out.match(/class="grupo-membro/g) || []).length, 3, 'desdobrado por padrão: 1 linha por projeto');
+assert.strictEqual((out.match(/class="grupo-membro[ "]/g) || []).length, 3, 'desdobrado por padrão: 1 linha por projeto');
 assert.ok(out.includes('aria-expanded="true"'));
 assert.ok(out.includes('status-row atual'), 'projeto da janela atual destacado');
 assert.ok(elementos.statusCount.textContent === '4', 'contador continua contando projetos');
 
 ctx.alternarGrupo('dev.azure.com/org/ci');
 out = elementos.statusList.innerHTML;
-assert.strictEqual((out.match(/class="grupo-membro/g) || []).length, 0, 'dobrado: sem linhas');
+assert.strictEqual((out.match(/class="grupo-membro[ "]/g) || []).length, 0, 'dobrado: sem linhas');
 assert.ok(out.includes('3 projects · ui: active: formDirty.ts'), 'dobrado: resumo com o mais recente');
 assert.ok(out.includes('aria-expanded="false"'));
-assert.deepStrictEqual(estado.dobrados, { 'dev.azure.com/org/ci': true }, 'estado de dobra salvo pro reload');
+assert.deepStrictEqual(JSON.parse(JSON.stringify(estado.dobrados)), { 'dev.azure.com/org/ci': true }, 'estado de dobra salvo pro reload');
 
 ctx.renderStatusList(projetos.map(p => ({ ...p, grupo: undefined })), null);
 assert.strictEqual((elementos.statusList.innerHTML.match(/class="status-row/g) || []).length, 4, 'sem grupo (extensão antiga): cards como antes');
@@ -411,12 +412,12 @@ assert.strictEqual((elementos.statusList.innerHTML.match(/class="status-row/g) |
 console.log('OK: painel agrupa cards pela origem (grupo dobrável, card único intacto)');
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `node test/test_grupos_painel.js`
 Expected: FAIL (first assertion: 0 group cards), or a stub error naming a DOM call the stub lacks — add that call to the stub and rerun until the failure is the assertion.
 
-- [ ] **Step 3: CSS — group card + arrow fix**
+- [x] **Step 3: CSS — group card + arrow fix**
 
 In `build.html`, after the `.status-warn{…}` line, add:
 
@@ -441,7 +442,7 @@ In `build.html`, after the `.status-warn{…}` line, add:
 
 In `.clickable::after` and `.clickable:hover::after`, change both `rotate(-45deg)` to `rotate(45deg)` (the arrow then points right, "open", instead of up).
 
-- [ ] **Step 4: JS — render groups**
+- [x] **Step 4: JS — render groups**
 
 Replace the whole `function renderStatusList(projetos, currentProject) { … }` with:
 
@@ -561,7 +562,7 @@ function renderStatusList(projetos, currentProject) {
 }
 ```
 
-- [ ] **Step 5: JS — fold state and clicks**
+- [x] **Step 5: JS — fold state and clicks**
 
 Right after `const vscode = acquireVsCodeApi();` add:
 
@@ -594,17 +595,17 @@ document.getElementById('statusList').addEventListener('keydown', (ev) => {
 });
 ```
 
-- [ ] **Step 6: Run test to verify it passes**
+- [x] **Step 6: Run test to verify it passes**
 
 Run: `node test/test_grupos_painel.js`
 Expected: `OK: painel agrupa cards pela origem (grupo dobrável, card único intacto)`
 
-- [ ] **Step 7: Run the full suite**
+- [x] **Step 7: Run the full suite**
 
 Run: `node test-all.js`
 Expected: `Todas as 25 suítes rodadas passaram. (1 pulada(s) por dependência ausente.)`
 
-- [ ] **Step 8: Commit**
+- [x] **Step 8: Commit**
 
 ```bash
 git add vscode-extension/media/build.html test/test_grupos_painel.js
@@ -616,14 +617,14 @@ git commit -m "feat(panel): group cards that share an origin into one collapsibl
 **Files:**
 - Modify: `CHANGELOG.md` (1.2.0 list), `README.md` ("What it shows")
 
-- [ ] **Step 1: CHANGELOG** — add to the 1.2.0 list, after the rename lines:
+- [x] **Step 1: CHANGELOG** — add to the 1.2.0 list, after the rename lines:
 
 ```markdown
 - Projects from the same git origin (worktrees, sub-folders with their own `package.json`, other clones of the same remote) are grouped into one collapsible card. A repo with a single project looks as before.
 - The "open" arrow on cards points right instead of up (it read as "collapse").
 ```
 
-- [ ] **Step 2: README** — add to "What it shows", after the "Projects are detected automatically…" bullet:
+- [x] **Step 2: README** — add to "What it shows", after the "Projects are detected automatically…" bullet:
 
 ```markdown
 - Projects that come from the same repository — git worktrees, sub-folders
@@ -632,12 +633,12 @@ git commit -m "feat(panel): group cards that share an origin into one collapsibl
   unfold it; the panel remembers.
 ```
 
-- [ ] **Step 3: Full suite, package, install**
+- [x] **Step 3: Full suite, package, install**
 
 Run: `node test-all.js && cd vscode-extension && rm -f *.vsix && npx --yes @vscode/vsce package --allow-missing-repository && code --install-extension simbionte-1.2.0.vsix --force`
 Expected: all suites pass; `Extension 'simbionte-1.2.0.vsix' was successfully installed.`
 
-- [ ] **Step 4: Commit and push**
+- [x] **Step 4: Commit and push**
 
 ```bash
 git add CHANGELOG.md README.md

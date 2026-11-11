@@ -31,6 +31,10 @@ sent anywhere.
 - Projects are detected automatically from the git root (and from
   sub-packages in monorepos: `package.json`, `pyproject.toml`,
   `__manifest__.py`).
+- Projects that come from the same repository — git worktrees, sub-folders
+  with their own `package.json`, or another clone of the same remote — are
+  grouped into one card you can fold. Click the group's header to fold or
+  unfold it; the panel remembers.
 
 ## Installation
 

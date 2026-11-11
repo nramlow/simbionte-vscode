@@ -8,6 +8,8 @@ Symbiont: English fork of [Simbionte](https://github.com/dragonfurioso35-art/sim
 - Panel, notifications, commands, settings and README translated to English.
 - Setting renamed to `simbionte.stuckThresholdMinutes`; the old `simbionte.limiteTravadoMin` is still honored if the new one isn't set.
 - Internal IDs and file names keep the original `simbionte` spelling, so existing installs and settings keep working.
+- Projects from the same git origin (worktrees, sub-folders with their own `package.json`, other clones of the same remote) are grouped into one collapsible card. A repo with a single project looks as before.
+- The "open" arrow on cards points right instead of up (it read as "collapse").
 - Updating the extension now refreshes its hook files in `~/.claude/` when they're out of date (only if the hooks are installed; `settings.json` is never touched). Before, fixes to the hooks only arrived after running **Install Claude Code hooks** again.
 - Fix: on Windows, a hook update could be lost when the panel was reading the same file at that moment (the atomic rename failed with EPERM and left a `.json.tmp` behind). The rename now retries for up to about 200 ms.
 
