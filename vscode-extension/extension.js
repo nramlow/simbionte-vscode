@@ -28,15 +28,15 @@ function lerSettings() {
 async function instalarHooks(extensionUri) {
   const settings = lerSettings();
   if (settings === null) {
-    return vscode.window.showErrorMessage(`Simbionte: ${SETTINGS_PATH} não é um JSON válido — corrija antes de instalar.`);
+    return vscode.window.showErrorMessage(`Simbionte: ${SETTINGS_PATH} is not valid JSON — fix it before installing.`);
   }
   const faltando = hooksFaltando(settings);
   const eventos = [...new Set(faltando.map(h => h.evento))].join(', ');
   const ok = await vscode.window.showWarningMessage(
-    `O Simbionte vai copiar ${ARQUIVOS.length} arquivos pra ${CLAUDE_DIR}`
-    + (faltando.length ? ` e adicionar ${faltando.length} hooks em settings.json (${eventos}). Backup do original em settings.json.bak.` : '.'),
-    { modal: true }, 'Instalar');
-  if (ok !== 'Instalar') return;
+    `Simbionte will copy ${ARQUIVOS.length} files to ${CLAUDE_DIR}`
+    + (faltando.length ? ` and add ${faltando.length} hooks to settings.json (${eventos}). The original is backed up to settings.json.bak.` : '.'),
+    { modal: true }, 'Install');
+  if (ok !== 'Install') return;
 
   const lib = vscode.Uri.joinPath(extensionUri, 'lib').fsPath;
   fs.mkdirSync(CLAUDE_DIR, { recursive: true });
@@ -53,7 +53,7 @@ async function instalarHooks(extensionUri) {
     if (fs.existsSync(SETTINGS_PATH) && !fs.existsSync(bak)) fs.copyFileSync(SETTINGS_PATH, bak);
     fs.writeFileSync(SETTINGS_PATH, JSON.stringify(adicionarHooks(settings, CLAUDE_DIR), null, 2) + '\n');
   }
-  vscode.window.showInformationMessage('Simbionte: hooks instalados. Vale nas próximas sessões do Claude Code.');
+  vscode.window.showInformationMessage('Simbionte: hooks installed. They take effect in your next Claude Code sessions.');
 }
 
 // Desfaz a instalação: tira do settings.json só as entradas do Simbionte
@@ -63,19 +63,19 @@ async function instalarHooks(extensionUri) {
 async function removerHooksCmd() {
   const settings = lerSettings();
   if (settings === null) {
-    return vscode.window.showErrorMessage(`Simbionte: ${SETTINGS_PATH} não é um JSON válido — corrija antes de remover.`);
+    return vscode.window.showErrorMessage(`Simbionte: ${SETTINGS_PATH} is not valid JSON — fix it before removing.`);
   }
   const ok = await vscode.window.showWarningMessage(
-    `O Simbionte vai tirar os hooks dele de settings.json e apagar ${ARQUIVOS.join(', ')} de ${CLAUDE_DIR}. Hooks de outras ferramentas não são tocados.`,
-    { modal: true }, 'Remover');
-  if (ok !== 'Remover') return;
+    `Simbionte will remove its hooks from settings.json and delete ${ARQUIVOS.join(', ')} from ${CLAUDE_DIR}. Other tools' hooks are not touched.`,
+    { modal: true }, 'Remove');
+  if (ok !== 'Remove') return;
   if (fs.existsSync(SETTINGS_PATH)) {
     fs.writeFileSync(SETTINGS_PATH, JSON.stringify(removerHooks(settings), null, 2) + '\n');
   }
   for (const f of ARQUIVOS) {
     try { fs.unlinkSync(path.join(CLAUDE_DIR, f)); } catch (e) { /* já não existia */ }
   }
-  vscode.window.showInformationMessage(`Simbionte: hooks removidos. Os dados do painel ficam em ${DIR} (pode apagar a pasta). Agora é só desinstalar a extensão.`);
+  vscode.window.showInformationMessage(`Simbionte: hooks removed. The panel's data stays in ${DIR} (you can delete that folder). Now you can uninstall the extension.`);
 }
 
 // Insights calculados AQUI, não buscados por HTTP: insights.js é puro —
@@ -216,11 +216,11 @@ function checarTransicoes(projetos) {
     const anterior = estadoConhecido.get(p.projectId) || {};
     const percentAtual = p.progress ? p.progress.percent : null;
     if (percentAtual === 100 && anterior.percent !== 100) {
-      notificar('Simbionte', `Plano concluído: ${p.projectName}`);
+      notificar('Simbionte', `Plan complete: ${p.projectName}`);
     }
     const viaBashAtual = !!(p.progress && p.progress.viaBash);
     if (viaBashAtual && !anterior.viaBash) {
-      notificar('Simbionte — REGRA DE OURO', `Checkbox editado via Bash em ${p.projectName} — Edit/Write manual recomendado`);
+      notificar('Simbionte — GOLDEN RULE', `Checkbox edited via Bash in ${p.projectName} — use Edit/Write instead`);
     }
     estadoConhecido.set(p.projectId, { percent: percentAtual, viaBash: viaBashAtual });
   }
@@ -281,7 +281,7 @@ class SimbiontePainelProvider {
           vscode.env.openExternal(vscode.Uri.parse(url));
         } else if (msg.path) {
           vscode.window.showTextDocument(vscode.Uri.file(msg.path))
-            .then(undefined, () => vscode.window.showWarningMessage('Arquivo não encontrado: ' + msg.path));
+            .then(undefined, () => vscode.window.showWarningMessage('File not found: ' + msg.path));
         }
       } else if (msg.type === 'openProject' && msg.path) {
         vscode.commands.executeCommand('vscode.openFolder', vscode.Uri.file(msg.path), { forceNewWindow: true });
@@ -302,7 +302,11 @@ class SimbiontePainelProvider {
 }
 
 function limiteTravadoMs() {
-  const min = Number(vscode.workspace.getConfiguration('simbionte').get('limiteTravadoMin', 15));
+  // English fork: setting renamed to stuckThresholdMinutes; the old key is still honored.
+  const cfg = vscode.workspace.getConfiguration('simbionte');
+  const novo = cfg.inspect('stuckThresholdMinutes');
+  const definidoNovo = novo && (novo.globalValue ?? novo.workspaceValue ?? novo.workspaceFolderValue) !== undefined;
+  const min = Number(definidoNovo ? cfg.get('stuckThresholdMinutes', 15) : cfg.get('limiteTravadoMin', 15));
   return Math.max(1, min || 15) * 60 * 1000;
 }
 
@@ -332,8 +336,8 @@ function iniciarAlertaTravamento() {
     if (!travada || alertadas.has(travada)) return;
     alertadas.add(travada);
     vscode.window.showWarningMessage(
-      `Simbionte: o Claude Code estava trabalhando e está sem sinal há mais de ${s.limiteMin} min — pode ter travado.`,
-      'Ver Simbionte'
+      `Simbionte: Claude Code was working and has had no signal for over ${s.limiteMin} min — it may be stuck.`,
+      'Show Simbionte'
     ).then(escolha => {
       if (escolha) vscode.commands.executeCommand('workbench.view.extension.simbionte');
     });
@@ -351,7 +355,7 @@ function activate(context) {
     vscode.commands.registerCommand('simbionte.instalarHooks', () => instalarHooks(context.extensionUri)),
     vscode.commands.registerCommand('simbionte.removerHooks', removerHooksCmd),
     vscode.workspace.onDidChangeConfiguration(e => {
-      if (e.affectsConfiguration('simbionte.limiteTravadoMin') && enviarAtual) enviarAtual();
+      if ((e.affectsConfiguration('simbionte.stuckThresholdMinutes') || e.affectsConfiguration('simbionte.limiteTravadoMin')) && enviarAtual) enviarAtual();
     })
   );
   // Sem hooks o painel fica vazio pra sempre; com hooks da 1.0.x o watchdog
@@ -361,9 +365,9 @@ function activate(context) {
   if (faltando.length) {
     const nenhum = faltando.length === hooksFaltando({}).length;
     vscode.window.showInformationMessage(
-      nenhum ? 'Simbionte: os hooks do Claude Code ainda não estão instalados.'
-        : 'Simbionte: há hooks novos (estado da sessão) — atualize pra parar os falsos alarmes de travamento.',
-      nenhum ? 'Instalar agora' : 'Atualizar hooks')
+      nenhum ? 'Simbionte: Claude Code hooks are not installed yet.'
+        : 'Simbionte: new hooks are available (session state) — update to stop false "stuck" alerts.',
+      nenhum ? 'Install now' : 'Update hooks')
       .then(escolha => { if (escolha) instalarHooks(context.extensionUri); });
   }
 }

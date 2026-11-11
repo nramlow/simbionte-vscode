@@ -96,11 +96,11 @@ teste('synthesize monta mensagem legível pra cada code conhecido', () => {
     { projectId: 'd', code: 'ci-failing', severity: 'alerta', detail: {} },
     { projectId: 'e', code: 'dead-dependency', severity: 'alerta', detail: { usedBy: 'x', usedByName: 'Projeto X' } },
   ]);
-  assert.strictEqual(out.find(o => o.projectId === 'a').message, 'sem commit há 45 dias, mas está marcado ativo');
-  assert.strictEqual(out.find(o => o.projectId === 'b').message, 'tem 3 arquivo(s) com mudança não commitada');
-  assert.strictEqual(out.find(o => o.projectId === 'c').message, 'está 2 commit(s) atrás do remote');
-  assert.strictEqual(out.find(o => o.projectId === 'd').message, 'a última execução de CI falhou');
-  assert.strictEqual(out.find(o => o.projectId === 'e').message, 'está morto mas ainda é usado por Projeto X, que está ativo');
+  assert.strictEqual(out.find(o => o.projectId === 'a').message, 'no commit in 45 days, but marked active');
+  assert.strictEqual(out.find(o => o.projectId === 'b').message, 'has 3 file(s) with uncommitted changes');
+  assert.strictEqual(out.find(o => o.projectId === 'c').message, 'is 2 commit(s) behind the remote');
+  assert.strictEqual(out.find(o => o.projectId === 'd').message, 'the last CI run failed');
+  assert.strictEqual(out.find(o => o.projectId === 'e').message, 'is dead but still used by Projeto X, which is active');
 });
 
 teste('synthesize ordena por severidade: alerta antes de atencao antes de info', () => {

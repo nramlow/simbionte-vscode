@@ -50,11 +50,11 @@ function computeSignals(scanData, PROJECTS, RELATIONS) {
 const SEVERITY_ORDER = { alerta: 0, atencao: 1, info: 2 };
 
 const MESSAGES = {
-  stale: d => `sem commit há ${d.days} dias, mas está marcado ativo`,
-  'dirty-now': d => `tem ${d.count} arquivo(s) com mudança não commitada`,
-  behind: d => `está ${d.count} commit(s) atrás do remote`,
-  'ci-failing': () => 'a última execução de CI falhou',
-  'dead-dependency': d => `está morto mas ainda é usado por ${d.usedByName}, que está ativo`,
+  stale: d => `no commit in ${d.days} days, but marked active`,
+  'dirty-now': d => `has ${d.count} file(s) with uncommitted changes`,
+  behind: d => `is ${d.count} commit(s) behind the remote`,
+  'ci-failing': () => 'the last CI run failed',
+  'dead-dependency': d => `is dead but still used by ${d.usedByName}, which is active`,
 };
 
 function synthesize(signals) {
@@ -102,7 +102,7 @@ function computeHealth(scanData, PROJECTS, RELATIONS) {
         // -30 ao cruzar o limiar, mais -5 a cada 15 dias extra, até -40
         const delta = -Math.min(40, 30 + Math.floor((daysSinceCommit - STALE_DAYS) / 15) * 5);
         score += delta;
-        reasons.push({ label: `${daysSinceCommit} dias sem commit`, delta });
+        reasons.push({ label: `${daysSinceCommit} days without a commit`, delta });
       }
     }
 
@@ -111,25 +111,25 @@ function computeHealth(scanData, PROJECTS, RELATIONS) {
       const dep = projectById[r.from];
       if (dep && dep.cat === 'morto') {
         score -= 15;
-        reasons.push({ label: `depende de ${dep.name} (morto)`, delta: -15 });
+        reasons.push({ label: `depends on ${dep.name} (dead)`, delta: -15 });
       }
     });
 
     if (s.dirtyCount > 0) {
       const delta = -Math.min(8, s.dirtyCount);
       score += delta;
-      reasons.push({ label: `${s.dirtyCount} arquivo(s) com mudança não commitada`, delta });
+      reasons.push({ label: `${s.dirtyCount} file(s) with uncommitted changes`, delta });
     }
 
     if (s.behind > 0) {
       const delta = -Math.min(10, s.behind * 2);
       score += delta;
-      reasons.push({ label: `${s.behind} commit(s) atrás do remote`, delta });
+      reasons.push({ label: `${s.behind} commit(s) behind the remote`, delta });
     }
 
     if (s.ci && s.ci.conclusion === 'failure') {
       score -= 20;
-      reasons.push({ label: 'última execução de CI falhou', delta: -20 });
+      reasons.push({ label: 'last CI run failed', delta: -20 });
     }
 
     score = Math.max(0, Math.min(100, score));

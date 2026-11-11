@@ -12,7 +12,7 @@ servidor, sem conta, sem enviar nada pra lugar nenhum.
 > it live: plan progress (`- [ ]` / `- [x]`), files touched and session state
 > (working, waiting for you, running a command, possibly stuck). 100% local:
 > small Claude Code hooks write JSON to `~/.claude/simbionte/` and the panel
-> reads it. The UI is in Portuguese.
+> reads it. This fork's UI is in English.
 
 ## O que ele mostra
 
@@ -26,7 +26,7 @@ servidor, sem conta, sem enviar nada pra lugar nenhum.
   terminada ou pedido de permissão), *executando comando há N min* (com o
   comando), *sessão encerrada*. Só alerta **possivelmente travada** quando o
   Claude estava trabalhando e ficou sem sinal além do limite (15 min por
-  padrão, ajustável em *Settings → Simbionte: Limite Travado Min*).
+  padrão, ajustável em *Settings → Simbionte: Stuck Threshold Minutes*).
 - **Checkbox marcado via Bash** — avisa quando o agente fechou item de plano
   por script em vez de Edit/Write (o jeito que mais deixa o painel
   desatualizado).

@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="pt-BR">
+<html lang="en">
 <head>
 <meta charset="utf-8">
 <style>
@@ -203,36 +203,36 @@
        projetos mais abaixo é o zoom-out. Portado da geração B em 2026-09-23. -->
   <div class="reactor-wrap">
     <div class="reactor">
-      <svg viewBox="0 0 100 100" id="ring" role="img" aria-label="progresso da tarefa atual"></svg>
+      <svg viewBox="0 0 100 100" id="ring" role="img" aria-label="current task progress"></svg>
       <div class="core-glow"></div>
       <div class="pct" id="pct">0%</div>
     </div>
-    <div class="steps" id="steps">0 / 0 etapas</div>
-    <div class="reactor-label" id="reactorLabel">sistema em espera</div>
+    <div class="steps" id="steps">0 / 0 steps</div>
+    <div class="reactor-label" id="reactorLabel">system idle</div>
   </div>
   <div class="banner" id="banner" hidden>
     <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M8 1.5 1 14h14L8 1.5Z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/><path d="M8 6.2v3.6M8 11.8v.1" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
     <span id="bannerTexto"></span>
   </div>
   <div class="sessao-linha" id="sessaoLinha" hidden></div>
-  <div class="section-head"><span class="t">projetos</span><span class="n" id="statusCount"></span></div>
-  <div id="statusList"><div class="empty">nenhum projeto com atividade ainda</div></div>
+  <div class="section-head"><span class="t">projects</span><span class="n" id="statusCount"></span></div>
+  <div id="statusList"><div class="empty">no project activity yet</div></div>
   <div class="divider"></div>
   <!-- Saúde e sinais: escondidos por completo quando não há scan (servidor
        nunca rodou nesta máquina) em vez de mostrar seção vazia. -->
   <div id="insightsBloco" hidden>
     <div class="section-head">
-      <span class="t">saúde</span><span class="scan-idade" id="scanIdade"></span>
+      <span class="t">health</span><span class="scan-idade" id="scanIdade"></span>
     </div>
     <div id="healthList"></div>
     <div class="fora-mapa" id="foraMapa" hidden></div>
-    <div class="section-head" id="sinaisHead"><span class="t">sinais</span></div>
+    <div class="section-head" id="sinaisHead"><span class="t">signals</span></div>
     <div id="signalsList"></div>
     <div class="divider"></div>
   </div>
   <div class="outros">
-    <div class="section-head"><span class="t" id="hojeTitle">hoje</span></div>
-    <div id="hojeList"><div class="empty">nenhuma edição hoje ainda</div></div>
+    <div class="section-head"><span class="t" id="hojeTitle">today</span></div>
+    <div id="hojeList"><div class="empty">no edits yet today</div></div>
   </div>
 </div>
 <script>
@@ -252,7 +252,7 @@ function ultimaAtividade(p) {
 function tempoRelativo(ts) {
   if (!ts) return '';
   const diffMin = Math.round((Date.now() - ts) / 60000);
-  if (diffMin < 1) return 'agora';
+  if (diffMin < 1) return 'now';
   if (diffMin < 60) return `${diffMin}min`;
   return `${Math.round(diffMin / 60)}h`;
 }
@@ -274,10 +274,10 @@ function infoLinha(p) {
   const progress = progressoEfetivo(p);
   const atividades = p.activity || [];
   const temAtividade = !!atividades.length;
-  if (progress && progress.activeLabel) return `construindo: ${escapeHtml(progress.activeLabel)}`;
-  if (progress && progress.total) return 'tarefa concluída';
-  if (temAtividade) return `ativo: ${escapeHtml(atividades[0].file)}`;
-  return 'sistema em espera';
+  if (progress && progress.activeLabel) return `building: ${escapeHtml(progress.activeLabel)}`;
+  if (progress && progress.total) return 'task complete';
+  if (temAtividade) return `active: ${escapeHtml(atividades[0].file)}`;
+  return 'system idle';
 }
 
 function corRecencia(ts) {
@@ -293,7 +293,7 @@ function renderStatusList(projetos, currentProject) {
   const count = document.getElementById('statusCount');
   if (!projetos.length) {
     count.textContent = '';
-    list.innerHTML = `<div class="empty">${ICON_SIGNAL}<span>nenhum projeto com atividade ainda</span></div>`;
+    list.innerHTML = `<div class="empty">${ICON_SIGNAL}<span>no project activity yet</span></div>`;
     return;
   }
   const ordenados = projetos.slice().sort((a, b) => ultimaAtividade(b) - ultimaAtividade(a));
@@ -314,7 +314,7 @@ function renderStatusList(projetos, currentProject) {
         </div>`
       : '';
     const aviso = (p.progress && p.progress.viaBash)
-      ? `<span class="status-warn" title="checkbox editado via Bash — Edit/Write manual recomendado">${ICON_WARN}</span>` : '';
+      ? `<span class="status-warn" title="checkbox edited via Bash — use Edit/Write instead">${ICON_WARN}</span>` : '';
     // path do clique é o arquivo mais recente tocado (mesmo comportamento
     // do reactor de antes: abre o que você tava fazendo, não a pasta) — a
     // extensão ainda tenta a URL mapeada (simbionte-urls.json) primeiro,
@@ -349,16 +349,16 @@ function renderHoje(projetos) {
   const hojeList = document.getElementById('hojeList');
   const hojeTitle = document.getElementById('hojeTitle');
   if (!doDia.length) {
-    hojeTitle.textContent = 'hoje';
-    hojeList.innerHTML = '<div class="empty">nenhuma edição hoje ainda</div>';
+    hojeTitle.textContent = 'today';
+    hojeList.innerHTML = '<div class="empty">no edits yet today</div>';
     return;
   }
   const total = doDia.reduce((soma, p) => soma + p.today.count, 0);
-  hojeTitle.textContent = `hoje — ${total} edições em ${doDia.length} projeto${doDia.length > 1 ? 's' : ''}`;
+  hojeTitle.textContent = `today — ${total} edit${total === 1 ? '' : 's'} in ${doDia.length} project${doDia.length > 1 ? 's' : ''}`;
   hojeList.innerHTML = doDia.map(p => `
     <div class="proj-item">
       <div class="proj-nome">${escapeHtml(p.projectName)}</div>
-      <div class="proj-pct">${escapeHtml(String(p.today.count))} edições</div>
+      <div class="proj-pct">${escapeHtml(String(p.today.count))} edit${p.today.count === 1 ? '' : 's'}</div>
     </div>`).join('');
 }
 
@@ -424,11 +424,11 @@ function renderReator(projetos, currentProject) {
 
   document.getElementById('pct').textContent = pct + '%';
   document.getElementById('steps').textContent = expirado
-    ? '0 / 0 etapas'
-    : `${progress.completed || 0} / ${progress.total || 0} etapas`;
+    ? '0 / 0 steps'
+    : `${progress.completed || 0} / ${progress.total || 0} steps`;
   document.getElementById('reactorLabel').innerHTML = (!expirado && progress.activeLabel)
-    ? `construindo: <b>${escapeHtml(progress.activeLabel)}</b>`
-    : (!expirado && progress.total ? 'tarefa concluída' : 'sistema em espera');
+    ? `building: <b>${escapeHtml(progress.activeLabel)}</b>`
+    : (!expirado && progress.total ? 'task complete' : 'system idle');
 }
 
 // ── Saúde e sinais ────────────────────────────────────────────────────
@@ -437,10 +437,10 @@ function renderReator(projetos, currentProject) {
 function idadeLegivel(ms) {
   if (ms == null) return '';
   const min = Math.round(ms / 60000);
-  if (min < 2) return 'agora';
-  if (min < 60) return `há ${min} min`;
+  if (min < 2) return 'just now';
+  if (min < 60) return `${min} min ago`;
   const h = Math.round(min / 60);
-  return h < 24 ? `há ${h}h` : `há ${Math.round(h / 24)}d`;
+  return h < 24 ? `${h}h ago` : `${Math.round(h / 24)}d ago`;
 }
 
 function renderInsights(insights) {
@@ -466,10 +466,10 @@ function renderInsights(insights) {
           <div class="health-grade grade-${escapeHtml(r.grade)}">${escapeHtml(r.grade)}</div>
           <div class="health-body">
             <div class="health-name">${escapeHtml(nomeDoProjeto(r.id))}</div>
-            <div class="health-reason">${escapeHtml(r.reasons && r.reasons[0] ? r.reasons[0].label : 'tudo em dia')}</div>
+            <div class="health-reason">${escapeHtml(r.reasons && r.reasons[0] ? r.reasons[0].label : 'all good')}</div>
           </div>
         </div>`).join('')
-      : '<div class="empty">nenhum projeto ativo catalogado</div>';
+      : '<div class="empty">no active cataloged projects</div>';
   }
 
   // Projetos que o store pegou e o catálogo ainda não conhece. Some quando
@@ -479,10 +479,10 @@ function renderInsights(insights) {
   foraMapa.hidden = !fora.length;
   if (fora.length) {
     const quais = fora.slice(0, 3).map(escapeHtml).join(', ');
-    const resto = fora.length > 3 ? ` e mais ${fora.length - 3}` : '';
-    foraMapa.innerHTML = `<b>${fora.length} projeto${fora.length > 1 ? 's' : ''} fora do catálogo</b><br>`
-      + `${quais}${resto} — aparece${fora.length > 1 ? 'm' : ''} acima, mas fica${fora.length > 1 ? 'm' : ''} `
-      + `fora de saúde e sinais até rodar <code>node gerar-data.js --gravar</code>`;
+    const resto = fora.length > 3 ? ` and ${fora.length - 3} more` : '';
+    foraMapa.innerHTML = `<b>${fora.length} project${fora.length > 1 ? 's' : ''} not in the catalog</b><br>`
+      + `${quais}${resto} — shown above, but left out of health and signals `
+      + `until you run <code>node gerar-data.js --gravar</code>`;
   }
 
   const signalsList = document.getElementById('signalsList');
@@ -496,7 +496,7 @@ function renderInsights(insights) {
           <div>${escapeHtml(s.message)}</div>
           <div class="sig-proj">${escapeHtml(nomeDoProjeto(s.projectId))}</div>
         </div>`).join('')
-      : '<div class="empty">tudo tranquilo</div>';
+      : '<div class="empty">all quiet</div>';
   }
   document.getElementById('sinaisHead').hidden = !sinais.length;
 }
@@ -509,14 +509,14 @@ function nomeDoProjeto(id) { return NOMES_PROJETO[id] || id; }
 // Estado da sessão do Claude Code (calculado na extensão, ver
 // store.js:estadoDaSessao). Só "travada" vira banner vermelho; os outros
 // estados são normais e ficam numa linha discreta.
-function minutos(ms) { const m = Math.floor(ms / 60000); return m < 1 ? 'agora' : `há ${m} min`; }
+function minutos(ms) { const m = Math.floor(ms / 60000); return m < 1 ? 'just now' : `for ${m} min`; }
 function textoSessao(s) {
   if (!s) return '';
-  if (s.estado === 'travada') return `sem sinal há mais de ${s.limiteMin} min enquanto trabalhava — o Claude Code pode ter travado`;
-  if (s.estado === 'comando') return `executando comando ${minutos(s.desde)}: ${s.comando}`;
-  if (s.estado === 'aguardando') return s.tipo === 'permission_prompt' ? 'aguardando sua permissão' : 'aguardando você';
-  if (s.estado === 'encerrada') return 'sessão encerrada';
-  return 'Claude trabalhando';
+  if (s.estado === 'travada') return `no signal for over ${s.limiteMin} min while working — Claude Code may be stuck`;
+  if (s.estado === 'comando') return `running a command ${minutos(s.desde)}: ${s.comando}`;
+  if (s.estado === 'aguardando') return s.tipo === 'permission_prompt' ? 'waiting for your permission' : 'waiting for you';
+  if (s.estado === 'encerrada') return 'session ended';
+  return 'Claude working';
 }
 function renderSessao(s) {
   const travada = !!s && s.estado === 'travada';
