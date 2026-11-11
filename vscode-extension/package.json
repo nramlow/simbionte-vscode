@@ -1,19 +1,19 @@
 {
   "name": "simbionte",
-  "displayName": "Simbionte",
-  "description": "Live Claude Code panel: plan progress, files touched and session state (working, waiting for you, running a command, stuck).",
-  "version": "1.1.0",
+  "displayName": "Symbiont",
+  "description": "Live Claude Code panel: plan progress, files touched and session state (working, waiting for you, running a command, stuck). English fork of Simbionte by Oscar Wilder Rojas Rivero.",
+  "version": "1.2.0",
   "publisher": "OSCARWILDERROJASRIVERO4849",
   "license": "MIT",
   "icon": "media/icon.png",
   "repository": {
     "type": "git",
-    "url": "https://github.com/dragonfurioso35-art/simbionte-vscode.git"
+    "url": "https://github.com/nramlow/simbionte-vscode.git"
   },
   "bugs": {
-    "url": "https://github.com/dragonfurioso35-art/simbionte-vscode/issues"
+    "url": "https://github.com/nramlow/simbionte-vscode/issues"
   },
-  "homepage": "https://github.com/dragonfurioso35-art/simbionte-vscode#readme",
+  "homepage": "https://github.com/nramlow/simbionte-vscode#readme",
   "engines": {
     "vscode": "^1.85.0"
   },
@@ -42,7 +42,7 @@
       "activitybar": [
         {
           "id": "simbionte",
-          "title": "Simbionte",
+          "title": "Symbiont",
           "icon": "media/icon.svg"
         }
       ]
@@ -52,22 +52,22 @@
         {
           "type": "webview",
           "id": "simbionte.painel",
-          "name": "Simbionte"
+          "name": "Symbiont"
         }
       ]
     },
     "commands": [
       {
         "command": "simbionte.instalarHooks",
-        "title": "Simbionte: Install Claude Code hooks"
+        "title": "Symbiont: Install Claude Code hooks"
       },
       {
         "command": "simbionte.removerHooks",
-        "title": "Simbionte: Remove Claude Code hooks"
+        "title": "Symbiont: Remove Claude Code hooks"
       }
     ],
     "configuration": {
-      "title": "Simbionte",
+      "title": "Symbiont",
       "properties": {
         "simbionte.stuckThresholdMinutes": {
           "type": "number",
@@ -79,7 +79,7 @@
           "type": "number",
           "default": 15,
           "minimum": 1,
-          "deprecationMessage": "Use \"Simbionte: Stuck Threshold Minutes\" instead. Still honored if the new setting is not set.",
+          "deprecationMessage": "Use \"Stuck Threshold Minutes\" instead. Still honored if the new setting is not set.",
           "description": "Deprecated: old name of Stuck Threshold Minutes."
         }
       }

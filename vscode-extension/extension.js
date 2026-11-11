@@ -28,12 +28,12 @@ function lerSettings() {
 async function instalarHooks(extensionUri) {
   const settings = lerSettings();
   if (settings === null) {
-    return vscode.window.showErrorMessage(`Simbionte: ${SETTINGS_PATH} is not valid JSON — fix it before installing.`);
+    return vscode.window.showErrorMessage(`Symbiont: ${SETTINGS_PATH} is not valid JSON — fix it before installing.`);
   }
   const faltando = hooksFaltando(settings);
   const eventos = [...new Set(faltando.map(h => h.evento))].join(', ');
   const ok = await vscode.window.showWarningMessage(
-    `Simbionte will copy ${ARQUIVOS.length} files to ${CLAUDE_DIR}`
+    `Symbiont will copy ${ARQUIVOS.length} files to ${CLAUDE_DIR}`
     + (faltando.length ? ` and add ${faltando.length} hooks to settings.json (${eventos}). The original is backed up to settings.json.bak.` : '.'),
     { modal: true }, 'Install');
   if (ok !== 'Install') return;
@@ -53,7 +53,7 @@ async function instalarHooks(extensionUri) {
     if (fs.existsSync(SETTINGS_PATH) && !fs.existsSync(bak)) fs.copyFileSync(SETTINGS_PATH, bak);
     fs.writeFileSync(SETTINGS_PATH, JSON.stringify(adicionarHooks(settings, CLAUDE_DIR), null, 2) + '\n');
   }
-  vscode.window.showInformationMessage('Simbionte: hooks installed. They take effect in your next Claude Code sessions.');
+  vscode.window.showInformationMessage('Symbiont: hooks installed. They take effect in your next Claude Code sessions.');
 }
 
 // Desfaz a instalação: tira do settings.json só as entradas do Simbionte
@@ -63,10 +63,10 @@ async function instalarHooks(extensionUri) {
 async function removerHooksCmd() {
   const settings = lerSettings();
   if (settings === null) {
-    return vscode.window.showErrorMessage(`Simbionte: ${SETTINGS_PATH} is not valid JSON — fix it before removing.`);
+    return vscode.window.showErrorMessage(`Symbiont: ${SETTINGS_PATH} is not valid JSON — fix it before removing.`);
   }
   const ok = await vscode.window.showWarningMessage(
-    `Simbionte will remove its hooks from settings.json and delete ${ARQUIVOS.join(', ')} from ${CLAUDE_DIR}. Other tools' hooks are not touched.`,
+    `Symbiont will remove its hooks from settings.json and delete ${ARQUIVOS.join(', ')} from ${CLAUDE_DIR}. Other tools' hooks are not touched.`,
     { modal: true }, 'Remove');
   if (ok !== 'Remove') return;
   if (fs.existsSync(SETTINGS_PATH)) {
@@ -75,7 +75,7 @@ async function removerHooksCmd() {
   for (const f of ARQUIVOS) {
     try { fs.unlinkSync(path.join(CLAUDE_DIR, f)); } catch (e) { /* já não existia */ }
   }
-  vscode.window.showInformationMessage(`Simbionte: hooks removed. The panel's data stays in ${DIR} (you can delete that folder). Now you can uninstall the extension.`);
+  vscode.window.showInformationMessage(`Symbiont: hooks removed. The panel's data stays in ${DIR} (you can delete that folder). Now you can uninstall the extension.`);
 }
 
 // Insights calculados AQUI, não buscados por HTTP: insights.js é puro —
@@ -216,11 +216,11 @@ function checarTransicoes(projetos) {
     const anterior = estadoConhecido.get(p.projectId) || {};
     const percentAtual = p.progress ? p.progress.percent : null;
     if (percentAtual === 100 && anterior.percent !== 100) {
-      notificar('Simbionte', `Plan complete: ${p.projectName}`);
+      notificar('Symbiont', `Plan complete: ${p.projectName}`);
     }
     const viaBashAtual = !!(p.progress && p.progress.viaBash);
     if (viaBashAtual && !anterior.viaBash) {
-      notificar('Simbionte — GOLDEN RULE', `Checkbox edited via Bash in ${p.projectName} — use Edit/Write instead`);
+      notificar('Symbiont — GOLDEN RULE', `Checkbox edited via Bash in ${p.projectName} — use Edit/Write instead`);
     }
     estadoConhecido.set(p.projectId, { percent: percentAtual, viaBash: viaBashAtual });
   }
@@ -336,8 +336,8 @@ function iniciarAlertaTravamento() {
     if (!travada || alertadas.has(travada)) return;
     alertadas.add(travada);
     vscode.window.showWarningMessage(
-      `Simbionte: Claude Code was working and has had no signal for over ${s.limiteMin} min — it may be stuck.`,
-      'Show Simbionte'
+      `Symbiont: Claude Code was working and has had no signal for over ${s.limiteMin} min — it may be stuck.`,
+      'Show Symbiont'
     ).then(escolha => {
       if (escolha) vscode.commands.executeCommand('workbench.view.extension.simbionte');
     });
@@ -365,8 +365,8 @@ function activate(context) {
   if (faltando.length) {
     const nenhum = faltando.length === hooksFaltando({}).length;
     vscode.window.showInformationMessage(
-      nenhum ? 'Simbionte: Claude Code hooks are not installed yet.'
-        : 'Simbionte: new hooks are available (session state) — update to stop false "stuck" alerts.',
+      nenhum ? 'Symbiont: Claude Code hooks are not installed yet.'
+        : 'Symbiont: new hooks are available (session state) — update to stop false "stuck" alerts.',
       nenhum ? 'Install now' : 'Update hooks')
       .then(escolha => { if (escolha) instalarHooks(context.extensionUri); });
   }
