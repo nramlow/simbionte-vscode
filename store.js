@@ -137,9 +137,28 @@ function escreverAtomico(projectId, dados) {
   const alvo = path.join(DIR, `${projectId}.json`);
   const tmp = `${alvo}.tmp`;
   fs.writeFileSync(tmp, JSON.stringify(dados));
-  fs.renameSync(tmp, alvo); // rename é atômico no mesmo volume — nunca deixa
+  renomearComRetry(tmp, alvo); // rename é atômico no mesmo volume — nunca deixa
   // a extensão ler um arquivo pela metade, mesmo se o processo morrer entre
   // o writeFileSync e o rename (o .tmp fica órfão, o .json bom continua lá).
+}
+
+// Achado 2026-11-11: no Windows o rename falha com EPERM/EACCES/EBUSY se
+// outro processo estiver com o destino aberto — e o painel lê esses arquivos
+// a cada mudança, então hook e painel colidiam de verdade (sobrava
+// <projeto>.json.tmp órfão e o update se perdia, porque o hook engole erro).
+// Leitura do painel dura milissegundos: tenta de novo por até ~200ms
+// (10ms x20), mesmo esquema de espera curta do adquirirLock. Esgotou, joga
+// o erro como antes.
+function renomearComRetry(origem, destino) {
+  for (let i = 0; ; i++) {
+    try {
+      return fs.renameSync(origem, destino);
+    } catch (e) {
+      if (i >= 19 || !['EPERM', 'EACCES', 'EBUSY'].includes(e.code)) throw e;
+      const fim = Date.now() + 10;
+      while (Date.now() < fim) { /* espera curta síncrona */ }
+    }
+  }
 }
 
 // origem ('edit'|'bash'): a REGRA DE OURO diz pra nunca fechar checkbox de

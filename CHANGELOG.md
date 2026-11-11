@@ -8,6 +8,7 @@ Symbiont: English fork of [Simbionte](https://github.com/dragonfurioso35-art/sim
 - Panel, notifications, commands, settings and README translated to English.
 - Setting renamed to `simbionte.stuckThresholdMinutes`; the old `simbionte.limiteTravadoMin` is still honored if the new one isn't set.
 - Internal IDs and file names keep the original `simbionte` spelling, so existing installs and settings keep working.
+- Fix: on Windows, a hook update could be lost when the panel was reading the same file at that moment (the atomic rename failed with EPERM and left a `.json.tmp` behind). The rename now retries for up to about 200 ms.
 
 ## 1.1.0 — 2026-09-25
 
