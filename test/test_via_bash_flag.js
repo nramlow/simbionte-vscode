@@ -9,6 +9,13 @@ const { execSync } = require('child_process');
 // Fonte do repo, não a cópia instalada em ~/.claude — testar a cópia deixa
 // a fonte livre pra divergir sem ninguém perceber. Também destrava rodar
 // esta suíte em qualquer máquina, não só na do autor.
+// HOME temporário (igual test_heartbeat_alert.js): o painel instalado vigia
+// ~/.claude/simbionte/ e, no Windows, lê o arquivo bem na hora do rename
+// atômico seguinte (EPERM) — além de mostrar um projeto falso no painel.
+// O env vem antes do require: store.js fixa o diretório ao carregar.
+const homeTemp = fs.mkdtempSync(path.join(os.tmpdir(), 'simbionte-home-'));
+process.env.HOME = homeTemp;
+process.env.USERPROFILE = homeTemp;
 const { resolverProjeto, atualizarProgresso, lerProjeto } = require('../store.js');
 
 const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'simbionte-viabash-'));
@@ -24,6 +31,6 @@ try {
 
   console.log('OK: atualizarProgresso marca viaBash quando origem é bash');
 } finally {
-  try { fs.unlinkSync(path.join(os.homedir(), '.claude', 'simbionte', `${proj.id}.json`)); } catch (e) {}
   fs.rmSync(tmpRoot, { recursive: true, force: true });
+  fs.rmSync(homeTemp, { recursive: true, force: true });
 }

@@ -9,9 +9,17 @@ const { execSync } = require('child_process');
 // Fonte do repo, não a cópia instalada em ~/.claude — testar a cópia deixa
 // a fonte livre pra divergir sem ninguém perceber. Também destrava rodar
 // esta suíte em qualquer máquina, não só na do autor.
+// HOME temporário (igual test_heartbeat_alert.js): o painel instalado vigia
+// ~/.claude/simbionte/ e, no Windows, lê o arquivo bem na hora do rename
+// atômico seguinte (EPERM) — além de mostrar um projeto falso no painel.
+// O env vem antes do require: store.js fixa o diretório ao carregar.
+const homeTemp = fs.mkdtempSync(path.join(os.tmpdir(), 'simbionte-home-'));
+process.env.HOME = homeTemp;
+process.env.USERPROFILE = homeTemp;
 const { resolverProjeto, resolverProjetoAtivo } = require('../store.js');
 
 const DIR = path.join(os.homedir(), '.claude', 'simbionte');
+fs.mkdirSync(DIR, { recursive: true });
 const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'simbionte-monorepo-'));
 execSync('git init -q', { cwd: tmpRoot });
 const addon = path.join(tmpRoot, 'addons', 'meu_addon');
@@ -51,5 +59,6 @@ try {
   console.log('OK: resolverProjetoAtivo prefere sub-projeto tocado recentemente, cai pro cwd sem isso');
 } finally {
   try { fs.unlinkSync(path.join(DIR, `${subEsperado.id}.json`)); } catch (e) {}
+  fs.rmSync(homeTemp, { recursive: true, force: true });
   fs.rmSync(tmpRoot, { recursive: true, force: true });
 }
