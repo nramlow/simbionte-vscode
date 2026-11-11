@@ -60,6 +60,25 @@ try {
   assert.strictEqual(origemDoProjeto(apagado), null, 'pasta que não existe: sem origem');
   assert.strictEqual(origemDoProjeto(null), null);
 
+  const proj = (id, p) => ({ projectId: id, projectName: id, projectPath: p });
+  const lista = agruparProjetos([
+    proj('Main-Repo', main), proj('feat-a', feat), proj('ui', ui), proj('gone', apagado),
+    proj('other-clone', outro), proj('lonely', sozinho), proj('plain', solto), proj('sem-caminho', undefined),
+  ]);
+  const g = id => lista.find(p => p.projectId === id).grupo;
+  for (const id of ['feat-a', 'ui', 'gone', 'other-clone']) assert.strictEqual(g(id).chave, CHAVE, `${id} no grupo do repo`);
+  assert.strictEqual(g('Main-Repo').nome, 'Main-Repo');
+  assert.strictEqual(g('gone').nome, 'Main-Repo', 'worktree apagado fica com o repo que contém a pasta dele');
+  assert.strictEqual(g('gone').raiz, oMain.raiz);
+  assert.strictEqual(g('other-clone').nome, 'other-clone', 'outro clone: mesma chave, nome da pasta dele');
+  assert.notStrictEqual(g('lonely').chave, CHAVE);
+  assert.deepStrictEqual(g('plain'), { chave: 'projeto:plain', nome: 'plain', raiz: solto }, 'fora do git: grupo só dele');
+  assert.strictEqual(g('sem-caminho').chave, 'projeto:sem-caminho');
+  assert.strictEqual(lista.find(p => p.projectId === 'ui').projectName, 'ui', 'o resto do projeto passa intacto');
+  let chamadas = 0;
+  agruparProjetos([proj('a', main)], p => { chamadas++; return origemDoProjeto(p); });
+  assert.strictEqual(chamadas, 1, 'origemDe é injetável (a extensão passa uma versão com cache)');
+
   console.log('OK: origem do projeto (worktree, sub-pasta, clone ssh, sem origin, fora do git)');
 } finally {
   fs.rmSync(tmp, { recursive: true, force: true });

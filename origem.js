@@ -67,4 +67,27 @@ function origemDoProjeto(projectPath) {
   return { chave, raiz: git.raiz };
 }
 
-module.exports = { normalizarUrl, origemDoProjeto };
+function dentroDe(filho, pai) {
+  const rel = path.relative(pai, filho);
+  return rel === '' || (!rel.startsWith('..') && !path.isAbsolute(rel));
+}
+
+// Devolve os mesmos projetos, cada um com grupo { chave, nome, raiz }.
+// Sem origem (pasta apagada, worktree removido): fica com o grupo cuja raiz
+// contém o caminho dele; senão, grupo só dele. origemDe é injetável pra
+// extensão passar uma versão com cache (origem de um caminho não muda).
+function agruparProjetos(projetos, origemDe = origemDoProjeto) {
+  const origens = projetos.map(p => origemDe(p.projectPath));
+  const conhecidas = origens.filter(Boolean);
+  return projetos.map((p, i) => {
+    const o = origens[i]
+      || (p.projectPath && conhecidas.find(c => dentroDe(p.projectPath, c.raiz)))
+      || null;
+    const grupo = o
+      ? { chave: o.chave, nome: path.basename(o.raiz), raiz: o.raiz }
+      : { chave: `projeto:${p.projectId}`, nome: p.projectName, raiz: p.projectPath };
+    return { ...p, grupo };
+  });
+}
+
+module.exports = { normalizarUrl, origemDoProjeto, agruparProjetos };
