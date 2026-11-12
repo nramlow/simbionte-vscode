@@ -358,6 +358,49 @@ function resolverProjetoAtivo(cwd) {
 // sessão encerrada. O último evento diz qual dos casos é (estadoDaSessao).
 // Lock porque várias sessões abertas escrevem no mesmo arquivo.
 const SESSAO_EXPIRA_MS = 24 * 60 * 60 * 1000;
+const INBOX_PIPE = /^\\\\\.\\pipe\\(?:LOCAL\\)?cc-msg-[0-9a-f]{32}$/i;
+const INBOX_SOCK = /^\/[^\0]*\.sock$/;
+const INBOX_TOKEN = /^[0-9a-f]{32}$/i;
+function inboxDoAmbiente() {
+  const socket = process.env.CLAUDE_CODE_MESSAGING_SOCKET;
+  const token = process.env.CLAUDE_CODE_MESSAGING_TOKEN;
+  if (!socket || !token || !INBOX_TOKEN.test(token) || !(INBOX_PIPE.test(socket) || INBOX_SOCK.test(socket))) return null;
+  return { socket, token };
+}
+
+// Pausa (pedido do Nik, 2026-11-12): _pausa.json = { sessoes: { id: { desde, pasta } } }.
+function lerPausa() {
+  try {
+    const p = JSON.parse(fs.readFileSync(path.join(DIR, '_pausa.json'), 'utf8'));
+    return { sessoes: (p && p.sessoes) || {} };
+  } catch (e) { return { sessoes: {} }; }
+}
+function gravarPausa(mudar) {
+  const lock = adquirirLock('_pausa');
+  try {
+    const p = lerPausa();
+    mudar(p.sessoes);
+    escreverAtomico('_pausa', p);
+  } finally { liberarLock(lock); }
+}
+function pausar(ids, pasta) {
+  gravarPausa(s => { for (const id of ids) s[id] = { desde: Date.now(), pasta: pasta || null }; });
+}
+function retomar(ids) {
+  gravarPausa(s => { for (const id of ids) delete s[id]; });
+}
+// Sessão pausada não começa trabalho longo: nem agente novo nem comando em
+// segundo plano. O passo atual (edições, comandos normais) e os agentes que
+// já rodam terminam. Devolve o motivo (o modelo vê) ou null.
+function bloqueioPausa(data, pausa) {
+  if (!data || !pausa || !pausa.sessoes || !pausa.sessoes[data.session_id]) return null;
+  const longo = data.tool_name === 'Agent'
+    || (data.tool_name === 'Bash' && data.tool_input && data.tool_input.run_in_background === true);
+  return longo
+    ? 'Nik paused this session in Symbiont (he wants to reload VS Code). Do not start new agents or background commands. Finish the step you are on, let running agents finish, make sure work is saved, then stop and say where you are and what is left. Wait for Nik to resume.'
+    : null;
+}
+
 function registrarHeartbeat(evento, data) {
   const agora = Date.now();
   const lock = adquirirLock('_heartbeat');
@@ -375,6 +418,14 @@ function registrarHeartbeat(evento, data) {
       if (evento === 'PreToolUse' && data.tool_input && data.tool_input.command) {
         reg.comando = String(data.tool_input.command).slice(0, 120);
       }
+      // Inbox da sessão (pausar/retomar pelo painel, 2026-11-12): o Claude Code
+      // dá caminho e token aos hooks de comando. Só aceita a forma de inbox do
+      // Claude Code; evento sem as variáveis mantém a última conhecida (um
+      // reload troca as duas, e o SessionStart registra as novas).
+      const inbox = inboxDoAmbiente();
+      const anterior = sessoes[data.session_id];
+      if (inbox) reg.inbox = inbox;
+      else if (anterior && anterior.inbox) reg.inbox = anterior.inbox;
       sessoes[data.session_id] = reg;
     }
     for (const id of Object.keys(sessoes)) {
@@ -578,4 +629,4 @@ function contextoDoTranscript(texto) {
   return null;
 }
 
-module.exports = { resolverProjeto, resolverProjetoAtivo, lerProjeto, atualizarProgresso, registrarAtividade, registrarHeartbeat, estadoDaSessao, resumoSessoes, sessoesDaPasta, progressoDoPlano, projetosExtrasDoPlano, registrarToque, viaBashNovo, comandoEscrevePlano, aplicarEventoAgente, registrarEventoAgente , aplicarUso, registrarUso, contextoDoTranscript };
+module.exports = { resolverProjeto, resolverProjetoAtivo, lerProjeto, atualizarProgresso, registrarAtividade, registrarHeartbeat, lerPausa, pausar, retomar, bloqueioPausa, estadoDaSessao, resumoSessoes, sessoesDaPasta, progressoDoPlano, projetosExtrasDoPlano, registrarToque, viaBashNovo, comandoEscrevePlano, aplicarEventoAgente, registrarEventoAgente , aplicarUso, registrarUso, contextoDoTranscript };
