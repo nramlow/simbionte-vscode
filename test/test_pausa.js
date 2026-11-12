@@ -71,5 +71,59 @@ assert.strictEqual(store.estadoDaSessao({ evento: 'SessionStart', ts: 0 }, 60 * 
 const { HOOKS } = require('../hooks-settings.js');
 assert.ok(HOOKS.some(h => h.evento === 'SessionStart' && h.file === 'estado-hook.js'), 'SessionStart registra a inbox nova depois de um reload');
 
-console.log('OK: pausa (inbox, arquivo de pausa, regra de bloqueio, hooks)');
+// ── Task 3: pausa.js ──
+// Comandos em segundo plano da sessão (suíte de testes): o Stop lista; sem
+// isso "paused · safe to reload" apareceria com testes ainda rodando.
+let st = store.aplicarEventoAgente({}, { hook_event_name: 'Stop', session_id: 'sx', cwd: 'D:\\CI', background_tasks: [
+  { id: 'b1', type: 'shell', status: 'running', description: 'Run the full API suite' },
+  { id: 'm1', type: 'monitor', status: 'running', description: 'x' },
+] }, 1000);
+assert.strictEqual(st.sessoes.sx.shells, 1, 'shell rodando contado (monitor não)');
+st = store.aplicarEventoAgente(st, { hook_event_name: 'Stop', session_id: 'sx', background_tasks: [] }, 2000);
+assert.ok(!st.sessoes.sx || !st.sessoes.sx.shells, 'terminou: zero');
+
+const pausa = require('../pausa.js');
+const sessoes = {
+  a: { evento: 'PostToolUse', ts: 1, cwd: 'D:\\CI', inbox: { socket: PIPE, token: TOKEN } },
+  b: { evento: 'Stop', ts: 1, cwd: 'D:\\CI\\.worktrees\\policy-model-2' },
+  c: { evento: 'Stop', ts: 1, cwd: 'D:\\Sauce\\simbionte-vscode' },
+};
+const projetos = [
+  { projectId: 'policy-model-2', projectPath: 'D:\\CI\\.worktrees\\policy-model-2', agentes: [{ id: 'g', sessao: 'a' }] },
+  { projectId: 'Communication-Intelligence', projectPath: 'D:\\CI' },
+  { projectId: 'simbionte-vscode', projectPath: 'D:\\Sauce\\simbionte-vscode' },
+];
+assert.deepStrictEqual(pausa.alvos([projetos[0]], sessoes).sort(), ['a', 'b'], 'sessão na pasta + dona dos agentes da linha');
+assert.deepStrictEqual(pausa.alvos([projetos[1]], sessoes).sort(), ['a', 'b'], 'checkout principal pega os worktrees dentro dele');
+assert.deepStrictEqual(pausa.alvos([projetos[2]], sessoes), ['c']);
+assert.deepStrictEqual(pausa.alvos([projetos[2]], { ...sessoes, c: { ...sessoes.c, evento: 'SessionEnd' } }), [], 'encerrada: fora');
+
+const est = (reg, ag, sh) => pausa.estadoPausa(reg, ag, sh);
+assert.strictEqual(est({ evento: 'PostToolUse' }, 0, 0), 'pausando', 'ainda trabalhando');
+assert.strictEqual(est({ evento: 'Stop' }, 1, 0), 'pausando', 'turno acabou mas agente vivo');
+assert.strictEqual(est({ evento: 'Stop' }, 0, 1), 'pausando', 'turno acabou mas testes em segundo plano');
+assert.strictEqual(est({ evento: 'Stop' }, 0, 0), 'pausado');
+assert.strictEqual(est({ evento: 'SessionStart' }, 0, 0), 'pausado', 'depois do reload, esperando o Resume');
+assert.ok(/Pause in Symbiont for policy-model-2/.test(pausa.mensagemPausa('policy-model-2')));
+assert.ok(/Start nothing new/.test(pausa.mensagemPausa('x')));
+assert.ok(/Resume/.test(pausa.MENSAGEM_RETOMA));
+
+// Envio pela inbox: auth + mensagem, uma por linha (formato do Claude Code).
+const net = require('net');
+const caminho = process.platform === 'win32' ? `\\\\.\\pipe\\simbionte-teste-${process.pid}` : path.join(os.tmpdir(), `simbionte-${process.pid}.sock`);
+let recebido = '';
+const srv = net.createServer(s => { s.on('data', c => recebido += c); });
+srv.listen(caminho, async () => {
+  try {
+    assert.strictEqual(await pausa.enviar({ socket: caminho, token: TOKEN }, 'Symbiont', 'oi'), true);
+    await new Promise(r => setTimeout(r, 100));
+    const linhas = recebido.trim().split('\n').map(l => JSON.parse(l));
+    assert.deepStrictEqual(linhas[0], { type: 'auth', token: TOKEN });
+    assert.deepStrictEqual(linhas[1], { type: 'user', from: 'Symbiont', message: { content: 'oi' } });
+    assert.strictEqual(await pausa.enviar({ socket: caminho + '-nao-existe', token: TOKEN }, 'Symbiont', 'x'), false, 'sessão sumiu: false, sem erro');
+    assert.strictEqual(await pausa.enviar(null, 'Symbiont', 'x'), false);
+    console.log('OK: pausa (inbox, arquivo de pausa, regra de bloqueio, hooks, alvos, estado, envio)');
+  } catch (e) { console.error(e); process.exitCode = 1; }
+  finally { srv.close(); }
+});
 fs.rmSync(home, { recursive: true, force: true });

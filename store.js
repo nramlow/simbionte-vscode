@@ -534,12 +534,12 @@ const AGENTE_MAX_MS = 2 * 60 * 60 * 1000;
 function aplicarEventoAgente(estado, data, agora) {
   const sessoes = {};
   for (const [id, s] of Object.entries((estado && estado.sessoes) || {})) {
-    sessoes[id] = { cwd: s.cwd || null, pendentes: [...(s.pendentes || [])], agentes: { ...(s.agentes || {}) } };
+    sessoes[id] = { cwd: s.cwd || null, pendentes: [...(s.pendentes || [])], agentes: { ...(s.agentes || {}) }, shells: s.shells || 0 };
   }
   const evento = data && data.hook_event_name;
   const sid = data && data.session_id;
   if (evento && sid) {
-    const s = sessoes[sid] = sessoes[sid] || { cwd: null, pendentes: [], agentes: {} };
+    const s = sessoes[sid] = sessoes[sid] || { cwd: null, pendentes: [], agentes: {}, shells: 0 };
     if (data.cwd) s.cwd = data.cwd;
     const desc = v => String(v || '').slice(0, 160);
     if (evento === 'PreToolUse' && data.tool_name === 'Agent' && data.tool_input) {
@@ -550,6 +550,9 @@ function aplicarEventoAgente(estado, data, agora) {
       s.agentes[data.agent_id] = { tipo: data.agent_type || (p && p.tipo) || '?', descricao: (p && p.descricao) || '', inicio: agora, fim: null };
     } else if (evento === 'SubagentStop' || evento === 'Stop') {
       const rodando = (data.background_tasks || []).filter(t => t && t.type === 'subagent' && t.status === 'running');
+      // Comandos em segundo plano (suíte de testes) da sessão: a pausa só diz
+      // 'safe to reload' quando terminaram (2026-11-12).
+      s.shells = (data.background_tasks || []).filter(t => t && t.type === 'shell' && t.status === 'running').length;
       for (const t of rodando) {
         const a = s.agentes[t.id];
         s.agentes[t.id] = a
@@ -570,7 +573,7 @@ function aplicarEventoAgente(estado, data, agora) {
     for (const [aid, a] of Object.entries(s.agentes)) {
       if ((a.fim && agora - a.fim > AGENTE_FIM_GUARDA_MS) || (!a.fim && agora - a.inicio > AGENTE_MAX_MS)) delete s.agentes[aid];
     }
-    if (!s.pendentes.length && !Object.keys(s.agentes).length) delete sessoes[id];
+    if (!s.pendentes.length && !Object.keys(s.agentes).length && !s.shells) delete sessoes[id];
   }
   return { sessoes };
 }
