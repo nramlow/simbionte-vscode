@@ -43,4 +43,20 @@ ctx.renderStatusList([row('policy-model-2', { grupo: g }), row('Communication-In
 out = elementos.statusList.innerHTML;
 assert.ok(/grupo-cabeca[^]*?data-acao="pausar" data-ids="policy-model-2,Communication-Intelligence"/.test(out), 'cabeça do grupo pausa o repo todo');
 
+// Pisca no hover (achado 2026-11-12): o painel recria a lista a cada envio
+// (vários por segundo com sessões ativas) e o ⏸ some/volta. Lista igual não
+// é reescrita.
+let escritas = 0;
+let valor = '';
+Object.defineProperty(elementos.statusList, 'innerHTML', { get: () => valor, set: v => { escritas++; valor = v; }, configurable: true });
+const igual = [row('simbionte-vscode')];
+ctx.renderStatusList(igual, null);
+const depoisDaPrimeira = escritas;
+ctx.renderStatusList(igual, null);
+ctx.renderStatusList(igual, null);
+assert.strictEqual(escritas, depoisDaPrimeira, 'mesmo conteúdo: DOM intacto (hover não pisca)');
+ctx.renderStatusList([row('outro')], null);
+assert.strictEqual(escritas, depoisDaPrimeira + 1, 'mudou: reescreve');
+assert.ok(!/\.pausa-btn\{[^}]*transition:[^}]*opacity/.test(html), 'sem fade no botão');
+
 console.log('OK: botões de pausa e estado no painel');

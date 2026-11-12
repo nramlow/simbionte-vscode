@@ -223,7 +223,7 @@
   .grupo-membro.atual{background:var(--glass-hi);}
   .grupo-membro.clickable:hover{background:rgba(63,232,196,.06);}
   /* pausa: botão discreto (só no hover, ou sempre quando pausada) */
-  .pausa-btn{flex:none;color:var(--dim);font-size:var(--fs-xs);opacity:0;cursor:pointer;padding:0 4px;border-radius:4px;transition:opacity .15s,color .15s;}
+  .pausa-btn{flex:none;color:var(--dim);font-size:var(--fs-xs);opacity:0;cursor:pointer;padding:0 4px;border-radius:4px;transition:color .15s;}
   .status-row:hover .pausa-btn,.grupo-membro:hover .pausa-btn,.grupo-cabeca:hover .pausa-btn,.pausa-btn:focus,.pausa-btn[data-acao="retomar"]{opacity:1;}
   .pausa-btn:hover{color:var(--teal);}
   .pausa-estado{color:var(--amarelo);font-size:var(--fs-xs);margin-top:2px;}
@@ -541,6 +541,7 @@ function renderStatusList(projetos, currentProject) {
   if (!projetos.length) {
     count.textContent = '';
     list.innerHTML = `<div class="empty">${ICON_SIGNAL}<span>no project activity yet</span></div>`;
+    htmlLista = null;
     return;
   }
   const ordenados = projetos.slice().sort((a, b) => ultimaAtividade(b) - ultimaAtividade(a));
@@ -556,10 +557,15 @@ function renderStatusList(projetos, currentProject) {
   // 2026-11-12: a lista não fica trocando de ordem embaixo dele.
   const daJanela = grupos.findIndex(g => g.membros.some(p => ehAtual(p, currentProject)));
   if (daJanela > 0) grupos.unshift(grupos.splice(daJanela, 1)[0]);
-  list.innerHTML = grupos.map((g, i) => g.membros.length === 1
+  const novo = grupos.map((g, i) => g.membros.length === 1
     ? cardProjeto(g.membros[0], currentProject, i === 0)
     : cardGrupo(g, currentProject, i === 0)).join('');
+  // Só reescreve se mudou (achado 2026-11-12): com sessões ativas chegam
+  // vários envios por segundo; recriar a lista toda vez tirava o hover dos
+  // elementos e o ⏸ piscava.
+  if (novo !== htmlLista) { htmlLista = novo; list.innerHTML = novo; }
 }
+let htmlLista = null;
 
 function hojeLocal() {
   const d = new Date();
