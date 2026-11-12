@@ -16,7 +16,7 @@ const { execSync } = require('child_process');
 const homeTemp = fs.mkdtempSync(path.join(os.tmpdir(), 'simbionte-home-'));
 process.env.HOME = homeTemp;
 process.env.USERPROFILE = homeTemp;
-const { resolverProjeto, atualizarProgresso, lerProjeto, viaBashNovo } = require('../store.js');
+const { resolverProjeto, atualizarProgresso, lerProjeto, viaBashNovo, comandoEscrevePlano } = require('../store.js');
 
 const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'simbionte-viabash-'));
 execSync('git init -q', { cwd: tmpRoot });
@@ -40,6 +40,27 @@ try {
   assert.strictEqual(viaBashNovo({ ...pr(3, 10), viaBash: true }, pr(3, 10), 'bash'), true, 'Bash sem mudança mantém o aviso aceso');
   assert.strictEqual(viaBashNovo({ ...pr(0, 134), viaBash: true }, pr(0, 134), 'bash'), false, 'nada marcado apaga aviso velho (falso alarme gravado antes do fix)');
   assert.strictEqual(viaBashNovo({ ...pr(3, 10), viaBash: true }, pr(3, 10), 'edit'), false, 'Edit apaga');
+
+  // Falso alarme (2026-11-11, governance-shell): um heredoc gravando a
+  // descrição de um PR num arquivo de rascunho CITAVA o plano; a contagem
+  // tinha mudado por Edits que o hook não viu, e a culpa caiu no comando.
+  // Só conta como "via Bash" o comando que ESCREVE no plano.
+  const P = 'D:/r/.worktrees/w/docs/superpowers/plans/2026-11-11-x.md';
+  const escreve = c => comandoEscrevePlano(c);
+  assert.strictEqual(escreve(`sed -i 's/- \\[ \\]/- [x]/' ${P}`), true);
+  assert.strictEqual(escreve(`perl -pi -e 's/x/y/' ${P}`), true);
+  assert.strictEqual(escreve(`echo "- [x] a" >> ${P}`), true);
+  assert.strictEqual(escreve(`(Get-Content ${P}) -replace 'a','b' | Set-Content ${P}`), true);
+  assert.strictEqual(escreve(`node -e "fs.writeFileSync('${P}', t)"`), true);
+  assert.strictEqual(escreve(`cat > $S/pr.json <<'EOF'\n{"description": "plan ${P} 134/134"}\nEOF`), false, 'heredoc em outro arquivo só cita');
+  assert.strictEqual(escreve(`git add ${P} && git commit -m "tick"`), false);
+  assert.strictEqual(escreve(`grep -c '^- \\[x\\]' ${P}`), false);
+  assert.strictEqual(escreve(`git worktree remove --force .worktrees/w`), false);
+  // Origem "leitura" (Bash que só cita): contagem igual mantém o aviso; mudou
+  // sem escrita vista (Edit fora do hook, git merge): não é culpa do Bash.
+  assert.strictEqual(viaBashNovo({ ...pr(3, 10), viaBash: true }, pr(3, 10), 'leitura'), true);
+  assert.strictEqual(viaBashNovo({ ...pr(3, 10), viaBash: false }, pr(9, 10), 'leitura'), false);
+  assert.strictEqual(viaBashNovo({ ...pr(3, 10), viaBash: true }, pr(9, 10), 'leitura'), false);
 
   console.log('OK: atualizarProgresso marca viaBash quando origem é bash');
 } finally {

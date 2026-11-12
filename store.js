@@ -174,10 +174,35 @@ function renomearComRetry(origem, destino) {
 // total mudou) acendiam o aviso com 0 checkbox marcado. Agora só conta
 // checkbox marcado: nada marcado = sem aviso (apaga também os gravados antes
 // deste fix); sem anterior = avisa só se já tem item marcado.
+// origem 'leitura' (achado 2026-11-11): Bash que só CITA o plano (heredoc
+// de descrição de PR, git add/commit, grep). Contagem igual mantém o aviso
+// como estava; contagem mudada sem escrita vista (Edit numa sessão sem o
+// hook, git merge) não é culpa do comando — sem aviso.
 function viaBashNovo(anterior, progress, origem) {
+  if (origem === 'leitura') {
+    const mesmo = !!(anterior && progress && anterior.completed === progress.completed);
+    return mesmo ? !!anterior.viaBash : false;
+  }
   if (origem !== 'bash' || !progress || !progress.completed) return false;
   if (!anterior) return true;
   return anterior.completed !== progress.completed ? true : !!anterior.viaBash;
+}
+
+// O comando Bash ESCREVE num plano (docs/superpowers/plans/*.md)? Edição
+// in-place (sed -i, perl -pi), redirecionamento pro plano (> / >>),
+// Set-Content/Add-Content/Out-File/tee, writeFile/write_text. Só citar o
+// caminho (git add, cat, grep, heredoc pra outro arquivo) não conta.
+const PLANO_RE = String.raw`[^\s"'|;&<>]*docs[\\/]superpowers[\\/]plans[\\/][^\s"'|;&<>]*\.md`;
+const ESCRITA_PLANO = [
+  new RegExp(String.raw`\bsed\b[^|;&\n]*\s-i\b[^|;&\n]*` + PLANO_RE),
+  new RegExp(String.raw`\bperl\b[^|;&\n]*\s-p?i\b[^|;&\n]*` + PLANO_RE),
+  new RegExp(String.raw`>>?\s*["']?` + PLANO_RE),
+  new RegExp(String.raw`\b(Set-Content|Add-Content|Out-File|tee)\b[^|;&\n]*` + PLANO_RE, 'i'),
+  new RegExp(String.raw`(writeFile(Sync)?|write_text|appendFile(Sync)?)\s*\(\s*["'\x60]?` + PLANO_RE),
+];
+function comandoEscrevePlano(comando) {
+  const c = String(comando || '');
+  return ESCRITA_PLANO.some(re => re.test(c));
 }
 
 function atualizarProgresso(projectId, projectName, progress, projectPath, origem) {
@@ -537,4 +562,4 @@ function contextoDoTranscript(texto) {
   return null;
 }
 
-module.exports = { resolverProjeto, resolverProjetoAtivo, lerProjeto, atualizarProgresso, registrarAtividade, registrarHeartbeat, estadoDaSessao, resumoSessoes, progressoDoPlano, projetosExtrasDoPlano, registrarToque, viaBashNovo, aplicarEventoAgente, registrarEventoAgente , aplicarUso, registrarUso, contextoDoTranscript };
+module.exports = { resolverProjeto, resolverProjetoAtivo, lerProjeto, atualizarProgresso, registrarAtividade, registrarHeartbeat, estadoDaSessao, resumoSessoes, progressoDoPlano, projetosExtrasDoPlano, registrarToque, viaBashNovo, comandoEscrevePlano, aplicarEventoAgente, registrarEventoAgente , aplicarUso, registrarUso, contextoDoTranscript };

@@ -6,7 +6,7 @@
 // ter editado um plano via Bash/script em vez de Edit/Write — esta trava
 // cobre esse caso (busca o caminho de um plano no texto do comando Bash).
 const path = require('path');
-const { resolverProjeto, resolverProjetoAtivo, atualizarProgresso, registrarAtividade, registrarHeartbeat, progressoDoPlano, projetosExtrasDoPlano, registrarToque } = require('./simbionte-store');
+const { resolverProjeto, resolverProjetoAtivo, atualizarProgresso, registrarAtividade, registrarHeartbeat, progressoDoPlano, projetosExtrasDoPlano, registrarToque, comandoEscrevePlano } = require('./simbionte-store');
 
 function extrairPlanoDoComandoBash(comando) {
   if (!comando) return null;
@@ -41,7 +41,9 @@ process.stdin.on('end', () => {
     if (filePlano) {
       const progresso = progressoDoPlano(filePlano);
       if (progresso) {
-        const origem = fileDireto ? 'edit' : 'bash';
+        // Bash só é 'bash' (aviso da REGRA DE OURO) quando ESCREVE no plano;
+        // só citá-lo (git add, heredoc, grep) é 'leitura' — achado 2026-11-11.
+        const origem = fileDireto ? 'edit' : (comandoEscrevePlano(data.tool_input?.command) ? 'bash' : 'leitura');
         atualizarProgresso(proj.id, proj.name, progresso, proj.path, origem);
         // Plano que cobre mais de um repo: mesmo progresso nos outros projetos.
         projetosExtrasDoPlano(filePlano).forEach(p => {
