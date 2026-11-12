@@ -639,7 +639,9 @@ function usoDaApi(json) {
   const pct = geral && typeof geral.percent === 'number' ? geral.percent : sd && typeof sd.utilization === 'number' ? sd.utilization : null;
   const resets = Date.parse((geral && geral.resets_at) || (sd && sd.resets_at) || '');
   if (pct == null || !resets) return null;
-  return { rate_limits: { seven_day: { used_percentage: pct, resets_at: Math.round(resets / 1000) } } };
+  // Arredonda pro minuto: o resets_at da API oscila ~1s entre consultas
+  // (achado 2026-11-12: 15:00:00.05 e 15:00:00.6), e o aviso trataria como semana nova.
+  return { rate_limits: { seven_day: { used_percentage: pct, resets_at: Math.round(resets / 60000) * 60 } } };
 }
 
 // Aviso do limite semanal (Nik tem resets grátis e só precisa saber a hora
@@ -648,7 +650,9 @@ function usoDaApi(json) {
 // marcado. Puro; o estado vive em _alertaUso.json.
 const NIVEIS_ALERTA = [90, 97];
 function nivelDeAlerta(estado, pct, resetsAt) {
-  const niveis = estado && estado.resetsAt === resetsAt ? [...estado.niveis] : [];
+  // Mesma semana se o reset bate com folga de 1h (a API oscila uns segundos).
+  const mesma = estado && Array.isArray(estado.niveis) && Math.abs(estado.resetsAt - resetsAt) < 3600000;
+  const niveis = mesma ? [...estado.niveis] : [];
   const cruzados = NIVEIS_ALERTA.filter(n => pct >= n && !niveis.includes(n));
   const novo = { resetsAt, niveis: [...niveis, ...cruzados].sort((x, y) => x - y) };
   return { nivel: cruzados.length ? cruzados[cruzados.length - 1] : null, estado: novo };

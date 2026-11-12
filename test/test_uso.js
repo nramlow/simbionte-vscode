@@ -61,6 +61,8 @@ assert.strictEqual(nivelDeAlerta(a.estado, 99, R).nivel, null, 'tudo avisado');
 const pulo = nivelDeAlerta({ resetsAt: R, niveis: [] }, 98, R);
 assert.strictEqual(pulo.nivel, 97, 'pulou os dois de uma vez: só o maior');
 assert.deepStrictEqual(pulo.estado.niveis, [90, 97], 'e o 90 não vem depois');
+assert.strictEqual(nivelDeAlerta(a.estado, 99, R + 1000).nivel, null, 'reset oscilando 1s: mesma semana, não repete');
+assert.strictEqual(usoDaApi({ limits: [{ kind: 'weekly_all', percent: 73, resets_at: '2026-11-14T15:00:00.712+00:00' }] }).rate_limits.seven_day.resets_at, 1794668400, 'reset arredondado pro minuto');
 const nova = nivelDeAlerta(a.estado, 92, R + 7 * 86400000);
 assert.strictEqual(nova.nivel, 90, 'semana nova (outro reset): avisa de novo');
 assert.deepStrictEqual(nova.estado, { resetsAt: R + 7 * 86400000, niveis: [90] });
