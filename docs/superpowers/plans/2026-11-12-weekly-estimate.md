@@ -58,3 +58,9 @@ Test call returned 72% (matches the app) and Fable-scoped 40%.
 
 - [x] `node test-all.js` green; real-data check against Claude's numbers (2026-11-12 03:50: API 72%; forecast limit Fri 1:54 AM, factor 4.1×; 6 h pace Thu 7:28 PM; Claude said "tomorrow night")
 - [x] Commit, push, package, install
+
+## Task 6: popup at 90% and 97% (Nik has free resets; card, 2026-11-12)
+
+- [x] `nivelDeAlerta` in `store.js` (once per level per week, jump → highest only); tests in `test/test_uso.js`
+- [x] Extension: the polling window shows the popup; `_alertaUso.json` dedupes across windows and reloads
+- [x] Ship

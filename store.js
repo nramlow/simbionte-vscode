@@ -642,6 +642,18 @@ function usoDaApi(json) {
   return { rate_limits: { seven_day: { used_percentage: pct, resets_at: Math.round(resets / 1000) } } };
 }
 
+// Aviso do limite semanal (Nik tem resets grátis e só precisa saber a hora
+// de usar um, 2026-11-12): popup em 90% e 97%, uma vez por nível por semana
+// (semana = resetsAt). Pulou os dois de uma vez: só o maior, e o menor fica
+// marcado. Puro; o estado vive em _alertaUso.json.
+const NIVEIS_ALERTA = [90, 97];
+function nivelDeAlerta(estado, pct, resetsAt) {
+  const niveis = estado && estado.resetsAt === resetsAt ? [...estado.niveis] : [];
+  const cruzados = NIVEIS_ALERTA.filter(n => pct >= n && !niveis.includes(n));
+  const novo = { resetsAt, niveis: [...niveis, ...cruzados].sort((x, y) => x - y) };
+  return { nivel: cruzados.length ? cruzados[cruzados.length - 1] : null, estado: novo };
+}
+
 function registrarUso(data) {
   const lock = adquirirLock('_uso');
   try {
@@ -673,4 +685,4 @@ function contextoDoTranscript(texto) {
   return null;
 }
 
-module.exports = { copiaMaisNovaDoPlano, resolverProjeto, resolverProjetoAtivo, lerProjeto, atualizarProgresso, registrarAtividade, registrarHeartbeat, lerPausa, pausar, retomar, bloqueioPausa, estadoDaSessao, resumoSessoes, sessoesDaPasta, progressoDoPlano, projetosExtrasDoPlano, registrarToque, viaBashNovo, comandoEscrevePlano, aplicarEventoAgente, registrarEventoAgente , aplicarUso, registrarUso, usoDaApi, contextoDoTranscript };
+module.exports = { copiaMaisNovaDoPlano, resolverProjeto, resolverProjetoAtivo, lerProjeto, atualizarProgresso, registrarAtividade, registrarHeartbeat, lerPausa, pausar, retomar, bloqueioPausa, estadoDaSessao, resumoSessoes, sessoesDaPasta, progressoDoPlano, projetosExtrasDoPlano, registrarToque, viaBashNovo, comandoEscrevePlano, aplicarEventoAgente, registrarEventoAgente , aplicarUso, registrarUso, usoDaApi, nivelDeAlerta, contextoDoTranscript };

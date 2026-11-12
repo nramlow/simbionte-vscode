@@ -11,7 +11,7 @@ const { execFileSync } = require('child_process');
 const home = fs.mkdtempSync(path.join(os.tmpdir(), 'simbionte-uso-'));
 process.env.HOME = home;
 process.env.USERPROFILE = home;
-const { aplicarUso, usoDaApi, contextoDoTranscript, registrarHeartbeat } = require('../store.js');
+const { aplicarUso, usoDaApi, nivelDeAlerta, contextoDoTranscript, registrarHeartbeat } = require('../store.js');
 
 // aplicarUso: semanal + tamanho da janela por modelo (sem o "[1m]")
 const T = 1794440000000;
@@ -45,6 +45,25 @@ assert.strictEqual(usoDaApi(null), null);
 const uApi = aplicarUso(u, usoDaApi(api), T + 2);
 assert.deepStrictEqual(uApi.semanal, { pct: 72, resetsAt: 1794668400000, ts: T + 2 }, 'passa pelo mesmo aplicarUso');
 assert.strictEqual(uApi.janelas['claude-opus-5-5'], 1000000, 'janelas ficam');
+
+// nivelDeAlerta: popup em 90% e 97%, uma vez por nível por semana (Nik tem resets grátis, 2026-11-12)
+const R = 1794668400000;
+let a = nivelDeAlerta(null, 85, R);
+assert.strictEqual(a.nivel, null, 'abaixo de 90%: nada');
+a = nivelDeAlerta(a.estado, 91, R);
+assert.strictEqual(a.nivel, 90);
+assert.deepStrictEqual(a.estado, { resetsAt: R, niveis: [90] });
+a = nivelDeAlerta(a.estado, 93, R);
+assert.strictEqual(a.nivel, null, '90% já avisado nesta semana');
+a = nivelDeAlerta(a.estado, 97.4, R);
+assert.strictEqual(a.nivel, 97);
+assert.strictEqual(nivelDeAlerta(a.estado, 99, R).nivel, null, 'tudo avisado');
+const pulo = nivelDeAlerta({ resetsAt: R, niveis: [] }, 98, R);
+assert.strictEqual(pulo.nivel, 97, 'pulou os dois de uma vez: só o maior');
+assert.deepStrictEqual(pulo.estado.niveis, [90, 97], 'e o 90 não vem depois');
+const nova = nivelDeAlerta(a.estado, 92, R + 7 * 86400000);
+assert.strictEqual(nova.nivel, 90, 'semana nova (outro reset): avisa de novo');
+assert.deepStrictEqual(nova.estado, { resetsAt: R + 7 * 86400000, niveis: [90] });
 
 // contextoDoTranscript: última resposta da thread principal
 const linha = o => JSON.stringify(o);

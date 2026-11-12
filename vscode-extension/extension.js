@@ -10,10 +10,10 @@ const URLS_PATH = path.join(os.homedir(), '.claude', 'simbionte-urls.json');
 // teria que reimplementar o parser de checkbox. Vem empacotado em lib/
 // (prepare.js), então funciona mesmo antes de os hooks serem instalados.
 let progressoDoPlano = () => null, resumoSessoes = () => null, contextoDoTranscript = () => null, sessoesDaPasta = s => s;
-let registrarUso = null, usoDaApi = null;
+let registrarUso = null, usoDaApi = null, nivelDeAlerta = null;
 let lerPausa = () => ({ sessoes: {} }), pausarSessoes = () => {}, retomarSessoes = () => {};
 try {
-  ({ progressoDoPlano, resumoSessoes, contextoDoTranscript, sessoesDaPasta, lerPausa, pausar: pausarSessoes, retomar: retomarSessoes, registrarUso, usoDaApi } = require('./lib/store.js'));
+  ({ progressoDoPlano, resumoSessoes, contextoDoTranscript, sessoesDaPasta, lerPausa, pausar: pausarSessoes, retomar: retomarSessoes, registrarUso, usoDaApi, nivelDeAlerta } = require('./lib/store.js'));
 } catch (e) { /* rodando do repo sem prepare.js — cai pro cache do hook */ }
 const { ARQUIVOS, hooksFaltando, adicionarHooks, removerHooks, arquivosDesatualizados, statusLineFaltando } = require('./lib/hooks-settings.js');
 
@@ -105,8 +105,29 @@ async function consultarUsoApi() {
     });
     if (!r.ok) return;
     const dado = usoDaApi(await r.json());
-    if (dado) registrarUso(dado);
+    if (dado) { registrarUso(dado); avisarLimite(dado.rate_limits.seven_day); }
   } catch (e) { /* rede, arquivo, formato: tenta na próxima */ }
+}
+
+// Popup em 90% e 97% do limite semanal (nivelDeAlerta), uma vez por nível
+// por semana. Só a janela que consultou a API chama; _alertaUso.json evita
+// repetir entre janelas e reloads.
+function avisarLimite(sd) {
+  if (!nivelDeAlerta || !sd) return;
+  const arquivo = path.join(DIR, '_alertaUso.json');
+  let estado = null;
+  try { estado = JSON.parse(fs.readFileSync(arquivo, 'utf8')); } catch (e) { /* 1ª vez */ }
+  const resetsAt = sd.resets_at * 1000;
+  const { nivel, estado: novo } = nivelDeAlerta(estado, sd.used_percentage, resetsAt);
+  if (JSON.stringify(novo) !== JSON.stringify(estado)) {
+    try { fs.writeFileSync(arquivo + '.tmp', JSON.stringify(novo)); fs.renameSync(arquivo + '.tmp', arquivo); } catch (e) { return; } // sem gravar, não avisa (repetiria)
+  }
+  if (nivel == null) return;
+  const reinicia = new Date(resetsAt).toLocaleString('en-US', { weekday: 'short', hour: 'numeric', minute: '2-digit' }).replace(',', '');
+  const pct = Math.round(sd.used_percentage);
+  vscode.window.showWarningMessage(nivel >= 97
+    ? `Weekly Claude limit at ${pct}%: about to run out (resets ${reinicia}). Time for a free reset.`
+    : `Weekly Claude limit at ${pct}% (resets ${reinicia}). A free reset may be needed soon.`);
 }
 
 function resumoPadrao(semanal) {
