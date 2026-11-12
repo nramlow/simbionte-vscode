@@ -41,6 +41,17 @@ sent anywhere.
   their row. An agent lands on the right worktree when its description
   follows `<worktree folder>: Task <n> <implement|review|fix> – <title>`;
   otherwise it shows on the folder its session runs in.
+- **Programmes** — when one piece of work spans several plans (one per
+  sub-project, each in its own worktree), list them in
+  `.symbiont/programme.json` in the main checkout and the top ring shows the
+  overall progress, e.g. *Governance redesign · sub-project 3/8 · 255/311
+  steps*, with the running plan's task and step underneath:
+  ```json
+  { "name": "Governance redesign", "subprojects": 8,
+    "plans": ["docs/superpowers/plans/2026-11-11-part1.md", "docs/superpowers/plans/2026-11-11-part2.md"] }
+  ```
+  Each plan is read from its newest copy among the main checkout and
+  `.worktrees/*`, so merged plans still count after their worktree is gone.
 - **Claude usage** — two small meters at the bottom: *context* (how full the
   context window is for the session the panel follows, from its transcript)
   and *weekly* (your weekly limit). The weekly number only comes from Claude
