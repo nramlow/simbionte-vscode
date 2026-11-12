@@ -85,6 +85,11 @@
           "minimum": 1,
           "deprecationMessage": "Use \"Stuck Threshold Minutes\" instead. Still honored if the new setting is not set.",
           "description": "Deprecated: old name of Stuck Threshold Minutes."
+        },
+        "simbionte.markdownAutoPreview": {
+          "type": "boolean",
+          "default": true,
+          "description": "Open Markdown (.md) files in the preview even when they come from a link (Claude Code panel, terminal, Copilot), which otherwise opens the text editor. Files with unsaved changes, diffs, and files you switch back to the text editor yourself are left alone."
         }
       }
     }
