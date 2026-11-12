@@ -44,4 +44,4 @@
 
 - [x] **Step 1: README + CHANGELOG.**
 - [x] **Step 2: Package, install, push, CI green.**
-- [ ] **Step 3: Real check** — screenshot of the strips and pace line; the full view opens.
+- [x] **Step 3: Real check** — screenshot of the strips and pace line; the full view opens.
