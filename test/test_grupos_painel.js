@@ -51,7 +51,11 @@ ctx.renderStatusList(projetos, 'simbionte-vscode');
 let out = elementos.statusList.innerHTML;
 assert.strictEqual((out.match(/class="status-grupo/g) || []).length, 1, 'um card de grupo pro repo com 3 projetos');
 assert.strictEqual((out.match(/class="status-row/g) || []).length, 1, 'repo com 1 projeto continua card normal');
-assert.ok(out.indexOf('status-grupo') < out.indexOf('status-row'), 'grupo mais recente vem primeiro');
+assert.ok(out.indexOf('status-row') < out.indexOf('status-grupo'), 'projeto da janela vem primeiro, mesmo menos recente');
+ctx.renderStatusList(projetos, null);
+assert.ok(elementos.statusList.innerHTML.indexOf('status-grupo') < elementos.statusList.innerHTML.indexOf('status-row'), 'sem janela: grupo mais recente primeiro');
+ctx.renderStatusList(projetos, 'simbionte-vscode');
+out = elementos.statusList.innerHTML;
 assert.ok(out.includes('>Communication-Intelligence <span'), 'cabeçalho com o nome do repo');
 assert.ok(out.includes('main checkout'), 'checkout principal aparece como "main checkout" (caminho com outra caixa/barra)');
 assert.ok(out.includes('active: formDirty.ts'));
@@ -66,6 +70,15 @@ assert.strictEqual((out.match(/class="grupo-membro[ "]/g) || []).length, 0, 'dob
 assert.ok(out.includes('3 projects · ui: active: formDirty.ts'), 'dobrado: resumo com o mais recente');
 assert.ok(out.includes('aria-expanded="false"'));
 assert.deepStrictEqual(JSON.parse(JSON.stringify(estado.dobrados)), { 'dev.azure.com/org/ci': true }, 'estado de dobra salvo pro reload');
+
+// Projeto da janela fica em cima (pedido do Nik, 2026-11-12: "não ficar
+// trocando"), mesmo parado; o resto segue por recência.
+ctx.renderStatusList(projetos.map(p => p.projectId === 'simbionte-vscode' ? { ...p, lastTouch: agora - 3 * 3600000 } : p), 'simbionte-vscode');
+out = elementos.statusList.innerHTML;
+assert.ok(out.indexOf('simbionte-vscode') < out.indexOf('status-grupo'), 'janela primeiro mesmo parada há 3h');
+ctx.renderStatusList(projetos, 'ui');
+out = elementos.statusList.innerHTML;
+assert.ok(out.indexOf('status-grupo') < out.indexOf('data-project-id="simbionte-vscode"'), 'projeto da janela dentro de um grupo: o grupo vai pra cima');
 
 // Pasta apagada (oculto): sai das linhas, mas a edição de hoje conta.
 const hojeChave = (() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; })();

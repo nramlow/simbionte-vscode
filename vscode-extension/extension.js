@@ -9,9 +9,9 @@ const URLS_PATH = path.join(os.homedir(), '.claude', 'simbionte-urls.json');
 // progressoDoPlano vem do mesmo módulo que o hook usa — sem isso a extensão
 // teria que reimplementar o parser de checkbox. Vem empacotado em lib/
 // (prepare.js), então funciona mesmo antes de os hooks serem instalados.
-let progressoDoPlano = () => null, resumoSessoes = () => null, contextoDoTranscript = () => null;
+let progressoDoPlano = () => null, resumoSessoes = () => null, contextoDoTranscript = () => null, sessoesDaPasta = s => s;
 try {
-  ({ progressoDoPlano, resumoSessoes, contextoDoTranscript } = require('./lib/store.js'));
+  ({ progressoDoPlano, resumoSessoes, contextoDoTranscript, sessoesDaPasta } = require('./lib/store.js'));
 } catch (e) { /* rodando do repo sem prepare.js — cai pro cache do hook */ }
 const { ARQUIVOS, hooksFaltando, adicionarHooks, removerHooks, arquivosDesatualizados, statusLineFaltando } = require('./lib/hooks-settings.js');
 
@@ -398,7 +398,7 @@ class SimbiontePainelProvider {
       const atual = projetoAtual();
       const projetos = anexarProgramas(marcarOcultos(agentesNoPainel(agruparProjetos(lerTodosProjetos(atual)))));
       checarTransicoes(projetos);
-      const sessao = sessaoAtual();
+      const sessao = sessaoAtual(vscode.workspace.workspaceFolders?.[0]?.uri.fsPath);
       const uso = usoAtual(sessao);
       // Achado 2026-09-23: o banner lia um estado recalculado pelo timer de
       // 60s e ficava na tela até um minuto DEPOIS de os hooks voltarem.
@@ -482,9 +482,12 @@ function lerSessoes() {
 // Lido do disco na hora, a cada envio: o banner é um alarme, e alarme que
 // demora a desligar treina a pessoa a ignorá-lo. Sem sessão conhecida
 // (hooks da 1.0.x, ou nenhum hook rodou ainda) = null, nunca "travada".
-function sessaoAtual() {
+// pasta: a da janela, pro painel (linha de estado e medidor de contexto) não
+// trocar de sessão conforme cada uma age. Sem pasta (popup de travamento):
+// todas — sessão travada em outra pasta também tem que avisar.
+function sessaoAtual(pasta) {
   const limite = limiteTravadoMs();
-  const s = resumoSessoes(lerSessoes(), Date.now(), limite);
+  const s = resumoSessoes(sessoesDaPasta(lerSessoes(), pasta), Date.now(), limite);
   if (s) s.limiteMin = Math.round(limite / 60000);
   return s;
 }

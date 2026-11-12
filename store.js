@@ -368,6 +368,8 @@ function registrarHeartbeat(evento, data) {
       if (data.notification_type) reg.tipo = data.notification_type;
       // transcript da sessão: o medidor de contexto lê o uso da última resposta.
       if (data.transcript_path) reg.transcript = String(data.transcript_path);
+      // pasta da sessão: o painel segue a sessão da pasta aberta na janela.
+      if (data.cwd) reg.cwd = String(data.cwd);
       if (evento === 'PreToolUse' && data.tool_input && data.tool_input.command) {
         reg.comando = String(data.tool_input.command).slice(0, 120);
       }
@@ -407,6 +409,18 @@ function estadoDaSessao(reg, agora, limiteMs) {
 
 // Sessão que representa o painel: a travada tem prioridade (é o alarme);
 // senão, a com evento mais recente. null = nenhuma sessão conhecida.
+// Só as sessões que trabalham dentro da pasta da janela (ou numa subpasta).
+// Pedido do Nik (2026-11-12): o medidor de contexto e a linha de estado
+// ficavam trocando de sessão conforme cada uma agia. Nenhuma bate (ou sem
+// janela): todas, como antes.
+function sessoesDaPasta(sessoes, pasta) {
+  if (!pasta) return sessoes || {};
+  const norm = s => String(s || '').replace(/\\/g, '/').replace(/\/+$/, '').toLowerCase();
+  const p = norm(pasta);
+  const dentro = Object.entries(sessoes || {}).filter(([, r]) => r.cwd && (norm(r.cwd) === p || norm(r.cwd).startsWith(p + '/')));
+  return dentro.length ? Object.fromEntries(dentro) : (sessoes || {});
+}
+
 function resumoSessoes(sessoes, agora, limiteMs) {
   const prioridade = e => (e.estado === 'travada' ? 0 : 1);
   let escolhida = null;
@@ -562,4 +576,4 @@ function contextoDoTranscript(texto) {
   return null;
 }
 
-module.exports = { resolverProjeto, resolverProjetoAtivo, lerProjeto, atualizarProgresso, registrarAtividade, registrarHeartbeat, estadoDaSessao, resumoSessoes, progressoDoPlano, projetosExtrasDoPlano, registrarToque, viaBashNovo, comandoEscrevePlano, aplicarEventoAgente, registrarEventoAgente , aplicarUso, registrarUso, contextoDoTranscript };
+module.exports = { resolverProjeto, resolverProjetoAtivo, lerProjeto, atualizarProgresso, registrarAtividade, registrarHeartbeat, estadoDaSessao, resumoSessoes, sessoesDaPasta, progressoDoPlano, projetosExtrasDoPlano, registrarToque, viaBashNovo, comandoEscrevePlano, aplicarEventoAgente, registrarEventoAgente , aplicarUso, registrarUso, contextoDoTranscript };

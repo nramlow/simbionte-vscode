@@ -50,6 +50,23 @@ registrarHeartbeat('PostToolUse', { session_id: 's1', transcript_path: 'C:\\t\\s
 const hb = JSON.parse(fs.readFileSync(path.join(home, '.claude', 'simbionte', '_heartbeat.json'), 'utf8'));
 assert.strictEqual(hb.sessoes.s1.transcript, 'C:\\t\\s1.jsonl');
 
+// Sessões da pasta da janela: o medidor de contexto e a linha de estado
+// seguem a sessão que trabalha na pasta aberta no VS Code, não a última que
+// agiu em qualquer lugar (pedido do Nik, 2026-11-12: "não ficar trocando").
+const { sessoesDaPasta } = require('../store.js');
+registrarHeartbeat('PostToolUse', { session_id: 's2', cwd: 'D:\\Sauce\\simbionte-vscode', transcript_path: 'x' });
+const hb2 = JSON.parse(fs.readFileSync(path.join(home, '.claude', 'simbionte', '_heartbeat.json'), 'utf8'));
+assert.strictEqual(hb2.sessoes.s2.cwd, 'D:\\Sauce\\simbionte-vscode', 'heartbeat guarda a pasta da sessão');
+const ses = {
+  a: { evento: 'Stop', ts: 1, cwd: 'd:\\Sauce\\simbionte-vscode' },
+  b: { evento: 'Stop', ts: 2, cwd: 'D:\\Sauce\\ci-ui\\Communication-Intelligence' },
+  c: { evento: 'Stop', ts: 3, cwd: 'D:/Sauce/simbionte-vscode/test' },
+  d: { evento: 'Stop', ts: 4 },
+};
+assert.deepStrictEqual(Object.keys(sessoesDaPasta(ses, 'D:\\Sauce\\simbionte-vscode')).sort(), ['a', 'c'], 'pasta e subpastas, sem ligar pra caixa/barra');
+assert.deepStrictEqual(Object.keys(sessoesDaPasta(ses, 'D:\\Sauce\\simbionte')), Object.keys(ses), 'prefixo de nome não é subpasta; nenhuma bate: todas');
+assert.deepStrictEqual(Object.keys(sessoesDaPasta(ses, null)), Object.keys(ses), 'sem janela: todas');
+
 // statusLine de ponta a ponta: grava _uso.json e imprime linha curta
 const claude = path.join(home, '.claude');
 fs.copyFileSync(path.join(__dirname, '..', 'claude-hooks', 'simbionte-statusline.js'), path.join(claude, 'simbionte-statusline.js'));

@@ -520,6 +520,10 @@ function renderStatusList(projetos, currentProject) {
     if (!porChave.has(chave)) { porChave.set(chave, { chave, membros: [] }); grupos.push(porChave.get(chave)); }
     porChave.get(chave).membros.push(p);
   }
+  // Projeto da janela (ou o grupo dele) sempre em cima — pedido do Nik,
+  // 2026-11-12: a lista não fica trocando de ordem embaixo dele.
+  const daJanela = grupos.findIndex(g => g.membros.some(p => ehAtual(p, currentProject)));
+  if (daJanela > 0) grupos.unshift(grupos.splice(daJanela, 1)[0]);
   list.innerHTML = grupos.map((g, i) => g.membros.length === 1
     ? cardProjeto(g.membros[0], currentProject, i === 0)
     : cardGrupo(g, currentProject, i === 0)).join('');
@@ -702,10 +706,12 @@ function renderReator(projetos, currentProject) {
   // nele enquanto o trabalho real acontecia em outro repo (o Claude Code roda
   // em qualquer pasta, não só na da janela). O foco da janela só vale se
   // estiver vivo; parado, cede pro projeto com atividade mais recente.
-  const foco = projetos.find(p => p.projectId === currentProject);
+  // Pedido do Nik (2026-11-12): o anel fica no projeto da janela mesmo
+  // parado — trocar sozinho de projeto confundia. Só sem linha da janela no
+  // painel ele cai no mais recente.
+  const foco = projetos.find(p => p.projectId === currentProject || p.projectName === currentProject);
   const recente = [...projetos].sort((a, b) => (ultimaAtividade(b) || 0) - (ultimaAtividade(a) || 0))[0];
-  const focoVivo = foco && (Date.now() - ultimaAtividade(foco)) < PROGRESSO_EXPIRA_MS;
-  const alvo = focoVivo ? foco : (recente || foco);
+  const alvo = foco || recente;
   if (alvo && alvo.programa) return renderPrograma(alvo.programa);
 
   const progress = alvo ? progressoEfetivo(alvo) : null;
@@ -717,7 +723,7 @@ function renderReator(projetos, currentProject) {
   // pra mostrar. Agora atividade recente no projeto (ultimaAtividade já
   // considera arquivo tocado e lastTouch) segura o progresso em pé; o
   // esquecimento continua valendo pro projeto de fato abandonado.
-  const vivo = alvo && (Date.now() - ultimaAtividade(alvo)) < PROGRESSO_EXPIRA_MS;
+  const vivo = alvo && (alvo === foco || (Date.now() - ultimaAtividade(alvo)) < PROGRESSO_EXPIRA_MS);
   const expirado = !progress || !progress.updatedAt
     || (!vivo && (Date.now() - progress.updatedAt) > PROGRESSO_EXPIRA_MS);
 

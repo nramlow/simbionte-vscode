@@ -12,19 +12,19 @@
 
 ### Task 1: programa.js
 
-- [ ] **Step 1: Failing test** — `test/test_programa.js`.
-- [ ] **Step 2: Implement** `lerPrograma`, `copiaMaisNova`, `progressoPrograma`.
-- [ ] **Step 3: Pass**, commit; run against the real CI repo with a scratch programme file (not written into that repo).
+- [x] **Step 1: Failing test** — `test/test_programa.js`.
+- [x] **Step 2: Implement** `lerPrograma`, `copiaMaisNova`, `progressoPrograma`.
+- [x] **Step 3: Pass**, commit; run against the real CI repo with a scratch programme file (not written into that repo).
 
 ### Task 2: Extension and ring
 
-- [ ] **Step 1: Failing test** — `test/test_programa_painel.js`.
-- [ ] **Step 2: Implement** — extension sends `programa`; `renderReator` uses it; `prepare.js` copies `programa.js`.
-- [ ] **Step 3: Pass + full suite**, commit.
+- [x] **Step 1: Failing test** — `test/test_programa_painel.js`.
+- [x] **Step 2: Implement** — extension sends `programa`; `renderReator` uses it; `prepare.js` copies `programa.js`.
+- [x] **Step 3: Pass + full suite**, commit.
 
 ### Task 3: Ship
 
-- [ ] **Step 1: README + CHANGELOG** (file format documented).
+- [x] **Step 1: README + CHANGELOG** (file format documented).
 - [ ] **Step 2: Package, install, push, CI green.**
 - [ ] **Step 3: Tell Governance Reconciliation the format** and that it can create the file.
 - [ ] **Step 4: Real check** — screenshot of the ring once the file exists.

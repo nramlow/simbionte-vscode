@@ -58,4 +58,17 @@ ctx.renderReator([{
 }], 'p');
 assert.deepStrictEqual(anel(), ['100%', '2 / 2 steps', 'task complete']);
 
+// O anel fica no projeto da janela mesmo parado (antes cedia pro mais
+// recente e trocava de projeto sozinho).
+ctx.renderReator([
+  { projectId: 'janela', projectName: 'janela', lastTouch: agora - 3 * 3600000, activity: [],
+    progress: { percent: 40, completed: 2, total: 5, activeLabel: 'Step 3: x', updatedAt: agora - 3 * 3600000 } },
+  { projectId: 'outro', projectName: 'outro', lastTouch: agora, activity: [],
+    progress: { percent: 90, completed: 9, total: 10, activeLabel: 'Step 10: y', updatedAt: agora } },
+], 'janela');
+assert.strictEqual(elementos.steps.textContent, '2 / 5 steps', 'anel fica na janela');
+ctx.renderReator([{ projectId: 'outro', projectName: 'outro', lastTouch: agora, activity: [],
+  progress: { percent: 90, completed: 9, total: 10, activeLabel: 'Step 10: y', updatedAt: agora } }], 'sem-linha');
+assert.strictEqual(elementos.steps.textContent, '9 / 10 steps', 'janela sem linha no painel: mais recente');
+
 console.log('OK: anel sem plano ativo mostra "no active plan" e o arquivo ativo');
