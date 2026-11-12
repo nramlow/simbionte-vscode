@@ -548,37 +548,6 @@ function activate(context) {
     vscode.window.registerWebviewViewProvider('simbionte.painel', provider)
   );
   const timer = iniciarAlertaTravamento();
-  // Markdown sempre no preview, mesmo aberto por link (autopreview.js): o
-  // painel do Claude Code, terminal e Copilot abrem no editor de texto e
-  // ignoram o workbench.editorAssociations. Setting simbionte.markdownAutoPreview.
-  try {
-    const ap = require('./lib/autopreview.js');
-    const estadoAP = ap.criarEstado();
-    const traduzir = tab => {
-      const i = tab.input;
-      if (i instanceof vscode.TabInputText) return { tipo: 'texto', uri: i.uri.toString(), scheme: i.uri.scheme, caminho: i.uri.path, sujo: tab.isDirty };
-      if (i instanceof vscode.TabInputTextDiff) return { tipo: 'diff', uri: i.modified.toString() };
-      if (i instanceof vscode.TabInputCustom) return { tipo: 'custom', uri: i.uri.toString(), viewType: i.viewType };
-      return { tipo: 'outro', uri: '' };
-    };
-    const todasAbas = () => vscode.window.tabGroups.all.flatMap(g => g.tabs);
-    context.subscriptions.push(vscode.window.tabGroups.onDidChangeTabs(ev => {
-      if (!vscode.workspace.getConfiguration('simbionte').get('markdownAutoPreview', true)) return;
-      ap.registrarEvento(estadoAP, { abertas: ev.opened.map(traduzir), fechadas: ev.closed.map(traduzir), abertasAgora: todasAbas().map(traduzir).map(x => x.uri) }, Date.now());
-      for (const aberta of ev.opened) {
-        const alvo = traduzir(aberta);
-        if (alvo.tipo !== 'texto') continue;
-        // Espera um instante: "Reopen Editor With… → Text Editor" fecha o
-        // preview logo depois de abrir o texto, e isso tem que ser visto antes.
-        setTimeout(() => {
-          const aba = todasAbas().find(x => x.input instanceof vscode.TabInputText && x.input.uri.toString() === alvo.uri && x.group === aberta.group);
-          if (!aba || !ap.deveTrocar(estadoAP, traduzir(aba), Date.now())) return;
-          vscode.commands.executeCommand('vscode.openWith', aba.input.uri, ap.PREVIEW, { viewColumn: aba.group.viewColumn, preserveFocus: !aba.isActive, preview: aba.isPreview })
-            .then(() => vscode.window.tabGroups.close(aba).then(undefined, () => {}), () => {});
-        }, 300);
-      }
-    }));
-  } catch (e) { /* rodando do repo sem prepare.js */ }
   // Código da extensão novo instalado: o painel já se atualiza sozinho; os
   // hooks em ~/.claude também (arquivos empacotados novos). O resto do código
   // só carrega num reload — avisa, sem forçar.
