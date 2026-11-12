@@ -310,26 +310,14 @@ function lerUrlProjeto(projectId) {
 // (custo: 1 scan de diretório por enviar(), não vale pagar isso pra todo
 // projeto listado), lê o `.md` de plano mais recente direto do disco e
 // usa esse resultado se ele for mais novo que o cache.
-function planoMaisRecente(projectPath) {
-  if (!projectPath) return null;
-  const dir = path.join(projectPath, 'docs', 'superpowers', 'plans');
-  let arquivos;
-  try { arquivos = fs.readdirSync(dir).filter(f => f.endsWith('.md')); }
-  catch (e) { return null; }
-  let escolhido = null, maiorMtime = -1;
-  for (const f of arquivos) {
-    const p = path.join(dir, f);
-    try {
-      const mtime = fs.statSync(p).mtimeMs;
-      if (mtime > maiorMtime) { maiorMtime = mtime; escolhido = p; }
-    } catch (e) { /* sumiu entre o readdir e o stat, ignora */ }
-  }
-  return escolhido;
-}
-
+// Relê do disco o MESMO plano que o hook gravou (progress.plano), pra
+// refletir git pull/tick feito em outra máquina. Antes pegava "o plano mais
+// novo da pasta" — depois de um pull, isso é qualquer plano que o pull
+// tocou (achado 2026-11-12: main checkout mostrava "building" num plano que
+// ninguém estava fazendo). Progresso antigo sem .plano fica como gravado.
 function comProgressoAoVivo(projeto, currentProject) {
   if (!projeto || (projeto.projectId !== currentProject && projeto.projectName !== currentProject)) return projeto;
-  const plano = planoMaisRecente(projeto.projectPath);
+  const plano = projeto.progress && projeto.progress.plano;
   if (!plano) return projeto;
   const vivo = progressoDoPlano(plano);
   if (!vivo) return projeto;
@@ -337,7 +325,7 @@ function comProgressoAoVivo(projeto, currentProject) {
   // de 5s o "progress" pareceria mais novo que qualquer atividade, e a
   // lógica de "atividade após conclusão" do build.html nunca disparava.
   try { vivo.updatedAt = fs.statSync(plano).mtimeMs; } catch (e) { /* arquivo sumiu no meio, usa Date.now() mesmo */ }
-  return { ...projeto, progress: vivo };
+  return { ...projeto, progress: { ...vivo, viaBash: !!projeto.progress.viaBash } };
 }
 
 // Arquivos de controle que dividem o diretório com os projetos. `_scan` é do

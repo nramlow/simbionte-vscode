@@ -93,7 +93,25 @@ function agruparProjetos(projetos, origemDe = origemDoProjeto) {
 // Linha cuja pasta não existe mais (worktree removido depois do merge) sai
 // do painel — pedido do Nik, 2026-11-12. Projeto sem caminho conhecido fica.
 // O arquivo em ~/.claude/simbionte/ continua (histórico, contagem de hoje).
-function soPastasExistentes(projetos, existe = fs.existsSync) {
+// Pasta viva: existe e, se fica dentro de .worktrees/ de um repo, tem o .git
+// próprio do worktree. Worktree removido cuja pasta vazia ficou (travada por
+// outro processo — achado 2026-11-12, .worktrees/docs-testing) conta como
+// sumido; subpasta de worktree vivo (ui/) acha o .git do worktree antes.
+function pastaViva(p) {
+  if (!fs.existsSync(p)) return false;
+  let dir = path.resolve(p);
+  for (;;) {
+    if (fs.existsSync(path.join(dir, '.git'))) {
+      const rel = path.relative(dir, path.resolve(p));
+      return !rel.split(path.sep)[0] || rel.split(path.sep)[0] !== '.worktrees';
+    }
+    const pai = path.dirname(dir);
+    if (pai === dir) return true; // fora de git: basta existir
+    dir = pai;
+  }
+}
+
+function soPastasExistentes(projetos, existe = pastaViva) {
   return projetos.filter(p => !p.projectPath || existe(p.projectPath));
 }
 

@@ -30,6 +30,12 @@ try {
   p = progressoDoPlano(arquivo);
   assert.strictEqual(p.percent, 100, 'leitura direta do disco deveria refletir o pull, sem Edit/Write');
 
+  // O progresso diz de qual arquivo veio: a extensão relê ESSE plano (pra
+  // refletir git pull), não "o mais novo da pasta" — depois de um pull, o
+  // mais novo por data é qualquer plano que o pull tocou (achado 2026-11-12:
+  // main checkout mostrava "building" num plano que ninguém tocava).
+  assert.strictEqual(p.plano, path.resolve(arquivo));
+
   // fora do padrão docs/superpowers/plans -> ignora
   const outro = path.join(tmpRoot, 'nota.md');
   fs.writeFileSync(outro, '- [x] x\n');

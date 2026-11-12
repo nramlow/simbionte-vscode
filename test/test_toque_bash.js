@@ -36,6 +36,18 @@ try {
   assert.ok(typeof depois.lastTouch === 'number' && Date.now() - depois.lastTouch < 5000, 'lastTouch deveria estar recente');
   assert.strictEqual((depois.activity || []).length, 0, 'Bash sem arquivo não deveria virar "atividade" de arquivo fake');
 
+  // Edit num arquivo FORA do projeto (memória da sessão em ~/.claude/projects,
+  // achado 2026-11-12: a linha "ui" mostrava "active: <memória de outra
+  // sessão>"): conta como sessão ativa ali, não como arquivo do projeto.
+  const memoria = path.join(home, '.claude', 'projects', 'x', 'memory', 'nota.md');
+  execFileSync(process.execPath, [HOOK], { input: JSON.stringify({ tool_name: 'Edit', cwd: tmpRoot, tool_input: { file_path: memoria } }) });
+  const depois2 = lerProjeto(proj.id);
+  assert.strictEqual((depois2.activity || []).length, 0, 'arquivo fora do projeto não vira atividade dele');
+  assert.ok(Date.now() - depois2.lastTouch < 5000, 'mas a sessão conta como ativa ali');
+  // Arquivo dentro do projeto continua virando atividade.
+  execFileSync(process.execPath, [HOOK], { input: JSON.stringify({ tool_name: 'Edit', cwd: tmpRoot, tool_input: { file_path: path.join(tmpRoot, 'src', 'a.js') } }) });
+  assert.strictEqual(lerProjeto(proj.id).activity[0].file, 'a.js');
+
   console.log('OK: Bash genérico registra lastTouch (recência), sem poluir activity');
 } finally {
   fs.rmSync(tmpRoot, { recursive: true, force: true });

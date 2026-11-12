@@ -349,8 +349,11 @@ function progressoEfetivo(p) {
   const progressBruto = p && p.progress;
   const atividades = (p && p.activity) || [];
   const temAtividade = !!atividades.length;
-  const atividadeAposConclusao = temAtividade && progressBruto && !progressBruto.activeLabel
-    && atividades[0].ts > (progressBruto.updatedAt || 0);
+  // Inclui o toque (comando sem arquivo) — achado 2026-11-12: sessão nova
+  // num worktree mostrava "task complete" de um plano fechado de outro trabalho.
+  const ultimoSinal = Math.max(temAtividade ? atividades[0].ts : 0, (p && p.lastTouch) || 0);
+  const atividadeAposConclusao = progressBruto && !progressBruto.activeLabel && progressBruto.total
+    && ultimoSinal > (progressBruto.updatedAt || 0) + 5000;
   return atividadeAposConclusao ? null : progressBruto;
 }
 
@@ -379,14 +382,18 @@ function linhasAgentes(p) {
   }).join('')}</div>`;
 }
 
+// Estágio vem de atividade VIVA (pedido do Nik, 2026-11-12): agente na
+// linha, ou sinal (edição/comando/tick) nos últimos 15 min. Plano aberto numa
+// pasta parada é "idle · next: …", nunca "building".
+const estaVivo = p => temAgente(p) || (Date.now() - ultimaAtividade(p)) < PROGRESSO_EXPIRA_MS;
 function infoLinha(p) {
   const progress = progressoEfetivo(p);
   const atividades = p.activity || [];
   const temAtividade = !!atividades.length;
-  if (progress && progress.activeLabel) return `building: ${escapeHtml(rotuloComTarefa(p, progress))}`;
+  if (progress && progress.activeLabel) return `${estaVivo(p) ? 'building' : 'idle · next'}: ${escapeHtml(rotuloComTarefa(p, progress))}`;
   if (progress && progress.total) return 'task complete';
   if (temAtividade) return `active: ${escapeHtml(atividades[0].file)}`;
-  return 'system idle';
+  return estaVivo(p) ? 'working' : 'system idle';
 }
 
 function corRecencia(ts) {
@@ -741,7 +748,7 @@ function renderReator(projetos, currentProject) {
     : `${progress.completed || 0} / ${progress.total || 0} steps`;
   document.getElementById('reactorLabel').innerHTML = expirado
     ? (arquivo ? `active: <b>${escapeHtml(arquivo)}</b>` : 'system idle')
-    : (progress.activeLabel ? `building: <b>${escapeHtml(rotuloComTarefa(alvo, progress))}</b>`
+    : (progress.activeLabel ? `${estaVivo(alvo) ? 'building' : 'idle · next'}: <b>${escapeHtml(rotuloComTarefa(alvo, progress))}</b>`
       : (progress.total ? 'task complete' : 'system idle'));
 }
 

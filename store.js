@@ -234,6 +234,8 @@ function progressoDoPlano(file) {
       : null,
     updatedAt: Date.now(),
     tarefas: tarefasDoPlano(texto),
+    // de qual arquivo veio: a extensão relê esse plano, não "o mais novo".
+    plano: path.resolve(file),
   };
 }
 

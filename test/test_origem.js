@@ -85,6 +85,13 @@ try {
   const vis = soPastasExistentes([proj('a', main), proj('gone', apagado), proj('sem', undefined)]);
   assert.deepStrictEqual(vis.map(p => p.projectId), ['a', 'sem'], 'pasta que não existe mais: some');
   assert.deepStrictEqual(soPastasExistentes([proj('x', 'C:/y')], () => true).length, 1, 'existe injetável');
+  // Worktree removido mas pasta vazia ficou (travada por outro processo,
+  // achado 2026-11-12 com .worktrees/docs-testing): sem .git próprio = sumiu.
+  // Subpasta de worktree vivo (ui com package.json) continua.
+  const vazio = path.join(main, '.worktrees', 'docs-testing');
+  fs.mkdirSync(vazio, { recursive: true });
+  const vis2 = soPastasExistentes([proj('Main-Repo', main), proj('feat-a', feat), proj('ui', ui), proj('docs-testing', vazio)]);
+  assert.deepStrictEqual(vis2.map(p => p.projectId), ['Main-Repo', 'feat-a', 'ui'], 'pasta de worktree sem .git: some');
 
   console.log('OK: origem do projeto (worktree, sub-pasta, clone ssh, sem origin, fora do git)');
 } finally {

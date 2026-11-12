@@ -33,7 +33,10 @@ process.stdin.on('end', () => {
 
     registrarToque(proj.id, proj.name, proj.path);
 
-    if (fileDireto) {
+    // Arquivo fora do projeto (memória da sessão em ~/.claude, etc.) não é
+    // atividade dele — só o toque acima (achado 2026-11-12, linha "ui").
+    const dentro = fileDireto && proj.path && !path.relative(proj.path, path.resolve(fileDireto)).startsWith("..") && !path.isAbsolute(path.relative(proj.path, path.resolve(fileDireto)));
+    if (dentro) {
       registrarAtividade(proj.id, proj.name, {
         file: path.basename(fileDireto), path: path.resolve(fileDireto), tool: data.tool_name || '?', ts: Date.now(),
       }, proj.path);

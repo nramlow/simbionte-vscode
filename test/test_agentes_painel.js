@@ -60,7 +60,24 @@ const membro = (id, extra) => ({ projectId: id, projectName: id, projectPath: 'D
 ctx.renderStatusList([membro('governance-shell', { agentes: AGS }), membro('policy-model-1', {})], null);
 assert.strictEqual((elementos.statusList.innerHTML.match(/class="agente"/g) || []).length, 2, 'agentes também nas linhas de grupo');
 ctx.alternarGrupo('k');
-assert.ok(elementos.statusList.innerHTML.includes('2 projects · governance-shell: system idle · 2 agents'), 'grupo dobrado conta agentes');
+assert.ok(elementos.statusList.innerHTML.includes('2 projects · governance-shell: working · 2 agents'), 'grupo dobrado conta agentes');
+
+// Estágio vem de atividade viva (pedido do Nik via sessão de governança,
+// 2026-11-12): plano aberto sem agente nem atividade recente não é
+// "building" — é "idle · next: …".
+const velho = agora - 3 * 3600000;
+ctx.renderStatusList([{ ...p, agentes: [], lastTouch: velho, progress: { ...prog, updatedAt: velho } }], null);
+assert.ok(elementos.statusList.innerHTML.includes('idle · next: Task 11/20 › Step 1/6: Imports in endpoints.tsx'), 'parado: idle · next');
+assert.ok(!elementos.statusList.innerHTML.includes('building:'), 'parado: nunca building');
+ctx.renderStatusList([{ ...p, lastTouch: velho, progress: { ...prog, updatedAt: velho } }], null);
+assert.ok(elementos.statusList.innerHTML.includes('building: Task 11/20 · in review'), 'agente vivo: building mesmo sem tick recente');
+// Plano fechado de outro trabalho + sessão ativa depois: não é "task complete".
+ctx.renderStatusList([{ projectId: 'gpp', projectName: 'governance-pages-plan', projectPath: 'D:\\gpp', lastTouch: agora, activity: [], agentes: [],
+  progress: { percent: 100, completed: 9, total: 9, activeLabel: null, updatedAt: agora - 2 * 3600000 } }], null);
+assert.ok(!elementos.statusList.innerHTML.includes('task complete'), 'plano fechado antes da sessão atual: some');
+assert.ok(elementos.statusList.innerHTML.includes('>working<'), 'sessão ativa sem arquivo editado: working');
+ctx.renderReator([{ ...p, agentes: [], lastTouch: velho, progress: { ...prog, updatedAt: velho } }], 'governance-shell');
+assert.ok(elementos.reactorLabel.innerHTML.startsWith('idle · next: <b>Task 11/20'), 'anel: mesma regra');
 
 // Bolinha: agente vivo numa linha parada fica amarela (não vermelha) — o
 // agente trabalha por caminhos da pasta da sessão e a linha parecia morta.
