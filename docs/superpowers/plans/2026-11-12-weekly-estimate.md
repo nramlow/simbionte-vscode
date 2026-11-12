@@ -57,4 +57,4 @@ Test call returned 72% (matches the app) and Fable-scoped 40%.
 ## Task 5: verify and ship
 
 - [x] `node test-all.js` green; real-data check against Claude's numbers (2026-11-12 03:50: API 72%; forecast limit Fri 1:54 AM, factor 4.1×; 6 h pace Thu 7:28 PM; Claude said "tomorrow night")
-- [ ] Commit, push, package, install
+- [x] Commit, push, package, install
