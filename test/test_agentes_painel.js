@@ -29,7 +29,7 @@ vm.runInContext(html.match(/<script>([\s\S]*)<\/script>/)[1], ctx);
 
 const agora = Date.now();
 const prog = { percent: 48, completed: 64, total: 134, activeLabel: 'Task 11 › Step 1: Imports in endpoints.tsx', updatedAt: agora,
-  tarefas: { total: 20, feitas: 10, atual: { numero: 11, titulo: 'access in URL' } } };
+  tarefas: { total: 20, feitas: 10, atual: { numero: 11, titulo: 'access in URL', passos: 6, feitos: 0 } } };
 const ag = (id, tipo, descricao, convencao, min) => ({ id, tipo, descricao, convencao, inicio: agora - min * 60000 });
 const AGS = [
   ag('b', 'deep-reviewer', 'governance-shell: Task 11 review', { worktree: 'governance-shell', tarefa: 11, papel: 'review', titulo: '' }, 2),
@@ -39,19 +39,21 @@ const p = { projectId: 'governance-shell', projectName: 'governance-shell', proj
 
 ctx.renderStatusList([p], null);
 let out = elementos.statusList.innerHTML;
-assert.ok(out.includes('building: Task 11/20 · in review › Step 1: Imports in endpoints.tsx'), 'Task N/total + estado do agente na tarefa atual');
+assert.ok(out.includes('building: Task 11/20 · in review › Step 1/6: Imports in endpoints.tsx'), 'Task N/total + estado do agente + Step N/total da tarefa');
 assert.strictEqual((out.match(/class="agente"/g) || []).length, 2, 'uma linha por agente vivo');
 assert.ok(out.includes('Task 12 implement – customer storage URL'));
 assert.ok(out.includes('deep-reviewer'));
 
 ctx.renderStatusList([{ ...p, agentes: [] }], null);
-assert.ok(elementos.statusList.innerHTML.includes('building: Task 11/20 › Step 1: Imports in endpoints.tsx'), 'sem agente na tarefa: só Task N/total');
+assert.ok(elementos.statusList.innerHTML.includes('building: Task 11/20 › Step 1/6: Imports in endpoints.tsx'), 'sem agente na tarefa: só Task N/total e Step N/total');
+ctx.renderStatusList([{ ...p, agentes: [], progress: { ...prog, tarefas: { ...prog.tarefas, atual: { numero: 11, titulo: 'x' } } } }], null);
+assert.ok(elementos.statusList.innerHTML.includes('building: Task 11/20 › Step 1: Imports'), 'progresso gravado antes (sem passos): Step sem total');
 
 ctx.renderStatusList([{ ...p, agentes: [], progress: { ...prog, activeLabel: 'teste real', tarefas: null } }], null);
 assert.ok(elementos.statusList.innerHTML.includes('building: teste real<'), 'plano sem Task: rótulo como antes');
 
 ctx.renderReator([p], 'governance-shell');
-assert.strictEqual(elementos.reactorLabel.innerHTML, 'building: <b>Task 11/20 · in review › Step 1: Imports in endpoints.tsx</b>');
+assert.strictEqual(elementos.reactorLabel.innerHTML, 'building: <b>Task 11/20 · in review › Step 1/6: Imports in endpoints.tsx</b>');
 
 const membro = (id, extra) => ({ projectId: id, projectName: id, projectPath: 'D:\\CI\\' + id, lastTouch: agora, activity: [], progress: null,
   grupo: { chave: 'k', nome: 'CI', raiz: 'D:\\CI' }, ...extra });

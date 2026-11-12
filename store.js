@@ -421,7 +421,8 @@ function tarefasDoPlano(texto) {
   return {
     total: comPassos.length,
     feitas: comPassos.filter(t => t.feitos === t.passos).length,
-    atual: proxima ? { numero: proxima.numero, titulo: proxima.titulo.slice(0, 80) } : null,
+    // passos/feitos da tarefa atual: o painel mostra "Step 2/5".
+    atual: proxima ? { numero: proxima.numero, titulo: proxima.titulo.slice(0, 80), passos: proxima.passos, feitos: proxima.feitos } : null,
   };
 }
 

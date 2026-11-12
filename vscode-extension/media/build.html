@@ -304,7 +304,10 @@ function rotuloComTarefa(p, progress) {
   if (!t || !t.atual) return rotulo;
   const agente = (p.agentes || []).find(a => a.convencao && a.convencao.tarefa === t.atual.numero);
   const marca = `Task ${t.atual.numero}/${t.total}${agente ? ' · ' + PAPEL[agente.convencao.papel] : ''}`;
-  return /\bTask \d+\b/.test(rotulo) ? rotulo.replace(/\bTask \d+\b/, marca) : `${marca} › ${rotulo}`;
+  // "Step 2" vira "Step 2/5" (passos da tarefa atual). Progresso gravado
+  // antes desta versão não tem `passos`: fica "Step 2" até o próximo tick.
+  const comPasso = t.atual.passos ? rotulo.replace(/\bStep (\d+)\b/, `Step $1/${t.atual.passos}`) : rotulo;
+  return /\bTask \d+\b/.test(comPasso) ? comPasso.replace(/\bTask \d+\b/, marca) : `${marca} › ${comPasso}`;
 }
 
 function linhasAgentes(p) {

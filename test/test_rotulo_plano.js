@@ -52,8 +52,8 @@ try {
   assert.strictEqual(progressoDoPlano(path.join(planos, 'b.md')).completed, 3, 'contagem não muda');
 
   assert.deepStrictEqual(progressoDoPlano(path.join(planos, 'a.md')).tarefas,
-    { total: 3, feitas: 1, atual: { numero: 2, titulo: 'Recognise upstream sessions' } }, 'Task 1 feita (2/2), atual = Task 2');
-  assert.deepStrictEqual(progressoDoPlano(path.join(planos, 'b.md')).tarefas.atual, { numero: 3, titulo: 'Something' });
+    { total: 3, feitas: 1, atual: { numero: 2, titulo: 'Recognise upstream sessions', passos: 1, feitos: 0 } }, 'Task 1 feita (2/2), atual = Task 2 com 1 passo');
+  assert.deepStrictEqual(progressoDoPlano(path.join(planos, 'b.md')).tarefas.atual, { numero: 3, titulo: 'Something', passos: 1, feitos: 0 });
   assert.strictEqual(progressoDoPlano(path.join(planos, 'd.md')).tarefas, null, 'sem títulos Task: null');
 
   console.log('OK: rótulo do plano leva Phase/Task (título em bloco de código não conta)');
