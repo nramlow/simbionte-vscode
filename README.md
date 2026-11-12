@@ -47,6 +47,13 @@ sent anywhere.
   Code's status line, which terminal sessions run and VS Code sessions
   don't, so it shows when it was last updated. The 5-hour and per-model
   limits aren't available to extensions.
+- **Your usage pattern** — Symbiont learns, from your Claude Code transcripts
+  on this PC (last 12 weeks, refreshed every 10 minutes), when Claude works
+  (tokens, agents included) and when you send messages. Two 24-hour strips
+  under the meters show both, with your usual active hours; click them, or
+  run **Symbiont: Show usage pattern**, for a weekday × hour view. Once it
+  has a full past week, the weekly pace forecast uses your usual hours
+  instead of a straight line.
 
 ## Installation
 
