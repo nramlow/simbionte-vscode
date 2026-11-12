@@ -29,6 +29,55 @@ try {
   agruparProjetos = projetos => origem.agruparProjetos(projetos, origemMemo);
 } catch (e) { /* rodando do repo sem prepare.js — cards sem grupo, como antes */ }
 
+// Padrão de uso por hora (padrao.js): varre os transcripts do Claude Code em
+// segundo plano (assíncrono — não trava o VS Code), uma varredura por vez,
+// e guarda em _padrao.json pra não reler tudo a cada abertura.
+let padraoLib = null;
+try { padraoLib = require('./lib/padrao.js'); } catch (e) { /* rodando do repo sem prepare.js */ }
+let padraoEstado = null;
+let varrendo = false;
+async function atualizarPadrao() {
+  if (!padraoLib || varrendo) return;
+  varrendo = true;
+  const arquivo = path.join(DIR, '_padrao.json');
+  try {
+    if (!padraoEstado) {
+      try { padraoEstado = JSON.parse(await fs.promises.readFile(arquivo, 'utf8')); } catch (e) { /* 1ª vez: varredura completa */ }
+    }
+    padraoEstado = await padraoLib.varrer(path.join(CLAUDE_DIR, 'projects'), padraoEstado);
+    await fs.promises.writeFile(arquivo + '.tmp', JSON.stringify(padraoEstado));
+    await fs.promises.rename(arquivo + '.tmp', arquivo);
+  } catch (e) { /* tenta de novo na próxima rodada */ }
+  finally { varrendo = false; }
+}
+function resumoPadrao(semanal) {
+  if (!padraoLib || !padraoEstado) return null;
+  const agora = Date.now();
+  const p = padraoLib.perfil(padraoEstado.horas, agora);
+  return {
+    dia: p.dia, semana: p.semana, semanas: p.semanas, dias: p.dias,
+    janela: padraoLib.janelaAtiva(p.dia), horaAtual: new Date(agora).getHours(),
+    previsao: padraoLib.previsao(semanal, padraoEstado.horas, p),
+  };
+}
+
+// Visão completa do padrão (comando "Symbiont: Show usage pattern"): uma aba
+// com as grades dia da semana × hora. Reaproveita a aba se já aberta.
+let painelPadrao = null;
+async function mostrarPadrao(extensionUri) {
+  if (!padraoEstado) await atualizarPadrao();
+  if (painelPadrao) painelPadrao.reveal();
+  else {
+    painelPadrao = vscode.window.createWebviewPanel('simbionte.padrao', 'Symbiont: usage pattern', vscode.ViewColumn.Active,
+      { enableScripts: true, localResourceRoots: [extensionUri] });
+    painelPadrao.webview.html = fs.readFileSync(vscode.Uri.joinPath(extensionUri, 'media', 'padrao.html').fsPath, 'utf8');
+    painelPadrao.onDidDispose(() => { painelPadrao = null; });
+  }
+  let semanal = null;
+  try { semanal = JSON.parse(fs.readFileSync(path.join(DIR, '_uso.json'), 'utf8')).semanal || null; } catch (e) { /* sem statusLine ainda */ }
+  painelPadrao.webview.postMessage({ type: 'padrao', dados: resumoPadrao(semanal) });
+}
+
 let transicoes = null;
 try { ({ transicoes } = require('./lib/transicoes.js')); } catch (e) { /* rodando do repo sem prepare.js — sem notificações */ }
 
@@ -246,7 +295,7 @@ function comProgressoAoVivo(projeto, currentProject) {
 // Arquivos de controle que dividem o diretório com os projetos. `_scan` é do
 // servidor, `_heartbeat` dos hooks, `_aviso_uso_*` é de OUTRA ferramenta
 // (um hook de aviso de uso) — o diretório não é exclusivo do Simbionte.
-const INTERNOS_RE = /^_(heartbeat|agentes|uso|scan\.\d+|aviso_uso_[^/\\]*)\.json$/i;
+const INTERNOS_RE = /^_(heartbeat|agentes|uso|padrao|scan\.\d+|aviso_uso_[^/\\]*)\.json$/i;
 
 function lerTodosProjetos(currentProject) {
   if (!fs.existsSync(DIR)) return [];
@@ -302,12 +351,13 @@ class SimbiontePainelProvider {
       const projetos = agentesNoPainel(agruparProjetos(lerTodosProjetos(atual)));
       checarTransicoes(projetos);
       const sessao = sessaoAtual();
+      const uso = usoAtual(sessao);
       // Achado 2026-09-23: o banner lia um estado recalculado pelo timer de
       // 60s e ficava na tela até um minuto DEPOIS de os hooks voltarem.
       // Aqui o estado é lido do disco na hora (ciclo de 5s); o timer de 60s
       // é só pro popup, que não pode disparar a cada poll.
       webviewView.webview.postMessage({
-        type: 'update', projetos, currentProject: atual, sessao, uso: usoAtual(sessao),
+        type: 'update', projetos, currentProject: atual, sessao, uso, padrao: resumoPadrao(uso.semanal),
         insights: lerInsights(),
         // Os insights vêm com o id do catálogo ("MEU-APP-V4"); o nome
         // legível só existe no data.js, que é do lado da extensão.
@@ -340,6 +390,8 @@ class SimbiontePainelProvider {
           vscode.window.showTextDocument(vscode.Uri.file(msg.path))
             .then(undefined, () => vscode.window.showWarningMessage('File not found: ' + msg.path));
         }
+      } else if (msg.type === 'abrirPadrao') {
+        vscode.commands.executeCommand('simbionte.mostrarPadrao');
       } else if (msg.type === 'openProject' && msg.path) {
         vscode.commands.executeCommand('vscode.openFolder', vscode.Uri.file(msg.path), { forceNewWindow: true });
       }
@@ -438,10 +490,15 @@ function activate(context) {
     vscode.window.registerWebviewViewProvider('simbionte.painel', provider)
   );
   const timer = iniciarAlertaTravamento();
+  // Padrão de uso: 1ª varredura 5s depois de abrir (não atrasa a ativação), depois a cada 10 min.
+  const primeiraVarredura = setTimeout(atualizarPadrao, 5000);
+  const varreduras = setInterval(atualizarPadrao, 10 * 60 * 1000);
+  context.subscriptions.push({ dispose: () => { clearTimeout(primeiraVarredura); clearInterval(varreduras); } });
   context.subscriptions.push({ dispose: () => clearInterval(timer) });
   context.subscriptions.push(
     vscode.commands.registerCommand('simbionte.instalarHooks', () => instalarHooks(context.extensionUri)),
     vscode.commands.registerCommand('simbionte.removerHooks', removerHooksCmd),
+    vscode.commands.registerCommand('simbionte.mostrarPadrao', () => mostrarPadrao(context.extensionUri)),
     vscode.workspace.onDidChangeConfiguration(e => {
       if ((e.affectsConfiguration('simbionte.stuckThresholdMinutes') || e.affectsConfiguration('simbionte.limiteTravadoMin')) && enviarAtual) enviarAtual();
     })

@@ -64,6 +64,10 @@
       {
         "command": "simbionte.removerHooks",
         "title": "Symbiont: Remove Claude Code hooks"
+      },
+      {
+        "command": "simbionte.mostrarPadrao",
+        "title": "Symbiont: Show usage pattern"
       }
     ],
     "configuration": {
