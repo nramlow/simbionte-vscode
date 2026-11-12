@@ -5,12 +5,14 @@
 // parada começa um turno com ela, sessão trabalhando lê entre uma ferramenta
 // e outra. Os hooks garantem a pausa (store.bloqueioPausa).
 const net = require('net');
-const path = require('path');
 
+// Comparação por texto normalizado (barras, caixa): funciona igual com
+// caminho Windows em qualquer sistema — o path do Linux não trata "\" como
+// separador (o CI pegou isso).
+const norm = s => String(s || '').replace(/\\/g, '/').replace(/\/+$/, '').toLowerCase();
 function dentroDe(filho, pai) {
-  if (!filho || !pai) return false;
-  const rel = path.relative(path.resolve(pai).toLowerCase(), path.resolve(filho).toLowerCase());
-  return rel === '' || (!rel.startsWith('..') && !path.isAbsolute(rel));
+  const a = norm(filho), b = norm(pai);
+  return !!a && !!b && (a === b || a.startsWith(b + '/'));
 }
 
 // Sessões das linhas escolhidas: as que trabalham dentro da pasta (o checkout
