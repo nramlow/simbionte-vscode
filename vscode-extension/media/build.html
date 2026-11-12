@@ -397,6 +397,16 @@ function corRecencia(ts) {
   return 'vermelho';
 }
 
+// Agente vivo numa linha parada: amarelo, não vermelho (pedido do Nik,
+// 2026-11-12). O agente roda comandos pela pasta da sessão, então a linha
+// do worktree parecia morta enquanto ele trabalhava. Atividade direta
+// recente continua verde.
+const temAgente = p => !!(p.agentes && p.agentes.length);
+function corDaLinha(p) {
+  const cor = corRecencia(ultimaAtividade(p));
+  return temAgente(p) && cor !== 'verde' ? 'amarelo' : cor;
+}
+
 const ehAtual = (p, currentProject) => p.projectId === currentProject || p.projectName === currentProject;
 const normCaminho = s => String(s || '').replace(/\\/g, '/').replace(/\/+$/, '').toLowerCase();
 const avisoBash = () => `<span class="status-warn" title="checkbox edited via Bash — use Edit/Write instead">${ICON_WARN}</span>`;
@@ -404,7 +414,7 @@ const avisoBash = () => `<span class="status-warn" title="checkbox edited via Ba
 function cardProjeto(p, currentProject, primeiro) {
   const progress = progressoEfetivo(p);
   const ultima = ultimaAtividade(p);
-  const cor = corRecencia(ultima);
+  const cor = corDaLinha(p);
   // só a linha #0 (mais recente de todo o painel) pulsa — ver @keyframes
   // respirar: 1 sinal de "ao vivo" por vez, não uma parede piscando.
   const pulsa = primeiro && cor === 'verde';
@@ -445,7 +455,7 @@ function linhaMembro(p, currentProject, nome) {
          data-project-id="${escapeHtml(p.projectId || '')}"
          data-path="${escapeHtml(arquivoRecente)}"
          tabindex="0" role="button">
-      <div class="status-dot ${corRecencia(ultima)}"></div>
+      <div class="status-dot ${corDaLinha(p)}"></div>
       <div class="status-body">
         <div class="status-nome">${escapeHtml(nome)} <span class="status-tempo">${tempoRelativo(ultima)}</span></div>
         <div class="status-info">${infoLinha(p)}</div>
@@ -459,7 +469,8 @@ function linhaMembro(p, currentProject, nome) {
 function cardGrupo(g, currentProject, primeiro) {
   const novo = g.membros[0];
   const ultima = ultimaAtividade(novo);
-  const cor = corRecencia(ultima);
+  const corNovo = corRecencia(ultima);
+  const cor = corNovo !== 'verde' && g.membros.some(temAgente) ? 'amarelo' : corNovo;
   const pulsa = primeiro && cor === 'verde';
   const dobrado = !!dobrados[g.chave];
   const raiz = normCaminho(novo.grupo.raiz);

@@ -62,4 +62,17 @@ assert.strictEqual((elementos.statusList.innerHTML.match(/class="agente"/g) || [
 ctx.alternarGrupo('k');
 assert.ok(elementos.statusList.innerHTML.includes('2 projects · governance-shell: system idle · 2 agents'), 'grupo dobrado conta agentes');
 
+// Bolinha: agente vivo numa linha parada fica amarela (não vermelha) — o
+// agente trabalha por caminhos da pasta da sessão e a linha parecia morta.
+// Atividade direta recente continua verde.
+const parado = { ...membro('policy-model-2', { agentes: [AGS[1]] }), lastTouch: agora - 28 * 60000 };
+ctx.renderStatusList([parado], null);
+assert.ok(elementos.statusList.innerHTML.includes('status-dot amarelo'), 'agente vivo, linha parada há 28 min: amarelo');
+ctx.renderStatusList([{ ...parado, agentes: [] }], null);
+assert.ok(elementos.statusList.innerHTML.includes('status-dot vermelho'), 'sem agente: vermelho');
+ctx.renderStatusList([{ ...parado, lastTouch: agora - 60000 }], null);
+assert.ok(elementos.statusList.innerHTML.includes('status-dot verde'), 'atividade direta recente: verde');
+ctx.renderStatusList([membro('a', { lastTouch: agora - 60 * 60000 }), membro('b', { lastTouch: agora - 90 * 60000, agentes: [AGS[0]] })], null);
+assert.ok(/grupo-cabeca[^]*?status-dot amarelo/.test(elementos.statusList.innerHTML), 'cabeça do grupo: algum membro com agente vivo deixa amarelo');
+
 console.log('OK: painel mostra Task N/total com estado e os agentes vivos');
