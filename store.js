@@ -397,7 +397,7 @@ function bloqueioPausa(data, pausa) {
   const longo = data.tool_name === 'Agent'
     || (data.tool_name === 'Bash' && data.tool_input && data.tool_input.run_in_background === true);
   return longo
-    ? 'Nik paused this session in Symbiont (he wants to reload VS Code). Do not start new agents or background commands. Finish the step you are on, let running agents finish, make sure work is saved, then stop and say where you are and what is left. Wait for Nik to resume.'
+    ? 'Nik paused this session in Symbiont (he wants to reload VS Code). Start nothing new: no new task, review, agent or background command. Let work that is already running finish (the agents\' current steps, test runs, commits), then stop and say where you are and what is next. Wait for Nik to resume.'
     : null;
 }
 
@@ -452,7 +452,9 @@ function estadoDaSessao(reg, agora, limiteMs) {
   if (!reg) return null;
   const desde = agora - reg.ts;
   if (reg.evento === 'SessionEnd') return { estado: 'encerrada', desde };
-  if (reg.evento === 'Stop' || reg.evento === 'Notification') {
+  // SessionStart (2026-11-12, registra a inbox depois de um reload): sessão
+  // aberta esperando o Nik, igual a uma resposta terminada.
+  if (reg.evento === 'Stop' || reg.evento === 'Notification' || reg.evento === 'SessionStart') {
     return { estado: 'aguardando', desde, tipo: reg.tipo || null };
   }
   if (desde > ABANDONADA_MS) return null;

@@ -52,5 +52,24 @@ assert.strictEqual(b({ tool_name: 'Edit', tool_input: {} }), null, 'terminar o p
 assert.strictEqual(store.bloqueioPausa({ session_id: 'outra', hook_event_name: 'PreToolUse', tool_name: 'Agent' }, pz), null, 'outra sessão não');
 assert.strictEqual(store.bloqueioPausa({ session_id: 's1', hook_event_name: 'PreToolUse', tool_name: 'Agent' }, { sessoes: {} }), null, 'retomada: passa');
 
-console.log('OK: pausa (inbox, arquivo de pausa, regra de bloqueio)');
+// ── Task 2: hooks de ponta a ponta ──
+const claude = path.join(home, '.claude');
+for (const f of ['estado-hook.js', 'agentes-hook.js']) fs.copyFileSync(path.join(__dirname, '..', 'claude-hooks', f), path.join(claude, f));
+fs.copyFileSync(path.join(__dirname, '..', 'store.js'), path.join(claude, 'simbionte-store.js'));
+const hook = (f, payload) => execFileSync(process.execPath, [path.join(claude, f)], { input: JSON.stringify(payload), encoding: 'utf8', env: { ...process.env, HOME: home, USERPROFILE: home } });
+const negou = out => { const j = out && JSON.parse(out); return !!(j && j.hookSpecificOutput && j.hookSpecificOutput.hookEventName === 'PreToolUse' && j.hookSpecificOutput.permissionDecision === 'deny' && /paused/i.test(j.hookSpecificOutput.permissionDecisionReason)); };
+assert.ok(negou(hook('agentes-hook.js', { hook_event_name: 'PreToolUse', session_id: 's1', tool_name: 'Agent', tool_input: { description: 'policy-model-2: Task 15 review', subagent_type: 'deep-reviewer' } })), 'pausada: Agent negado');
+let ag = { sessoes: {} };
+try { ag = JSON.parse(fs.readFileSync(path.join(claude, 'simbionte', '_agentes.json'), 'utf8')); } catch (e) { /* nada gravado: certo */ }
+assert.ok(!ag.sessoes.s1 || !ag.sessoes.s1.pendentes.length, 'agente negado não vira pendente');
+assert.strictEqual(hook('agentes-hook.js', { hook_event_name: 'PreToolUse', session_id: 's9', tool_name: 'Agent', tool_input: { description: 'x', subagent_type: 'Explore' } }), '', 'outra sessão: silêncio');
+assert.strictEqual(hook('agentes-hook.js', { hook_event_name: 'Stop', session_id: 's1', background_tasks: [] }), '', 'Stop nunca escreve');
+assert.ok(negou(hook('estado-hook.js', { hook_event_name: 'PreToolUse', session_id: 's1', tool_name: 'Bash', tool_input: { command: 'scripts/test-suite.sh api', run_in_background: true } })), 'pausada: Bash em segundo plano negado');
+assert.strictEqual(hook('estado-hook.js', { hook_event_name: 'PreToolUse', session_id: 's1', tool_name: 'Bash', tool_input: { command: 'git commit -m x' } }), '', 'commit do passo atual passa');
+assert.strictEqual(hook('estado-hook.js', { hook_event_name: 'UserPromptSubmit', session_id: 's1', prompt: 'oi' }), '', 'UserPromptSubmit nunca escreve');
+assert.strictEqual(store.estadoDaSessao({ evento: 'SessionStart', ts: 0 }, 60 * 60000, 15 * 60000).estado, 'aguardando', 'SessionStart não vira "travada" depois de 15 min');
+const { HOOKS } = require('../hooks-settings.js');
+assert.ok(HOOKS.some(h => h.evento === 'SessionStart' && h.file === 'estado-hook.js'), 'SessionStart registra a inbox nova depois de um reload');
+
+console.log('OK: pausa (inbox, arquivo de pausa, regra de bloqueio, hooks)');
 fs.rmSync(home, { recursive: true, force: true });

@@ -14,6 +14,7 @@ const HOOKS = [
   { evento: 'Stop', file: 'estado-hook.js' },
   { evento: 'UserPromptSubmit', file: 'estado-hook.js' },
   { evento: 'SessionEnd', file: 'estado-hook.js' },
+  { evento: 'SessionStart', file: 'estado-hook.js' },
   { evento: 'PreToolUse', matcher: 'Agent', file: 'agentes-hook.js' },
   { evento: 'SubagentStart', file: 'agentes-hook.js' },
   { evento: 'SubagentStop', file: 'agentes-hook.js' },
