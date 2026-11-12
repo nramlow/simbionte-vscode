@@ -113,6 +113,10 @@
     font-size:var(--fs-sm);font-weight:600;color:#eafffa;font-variant-numeric:tabular-nums;}
   .mini-nome{margin-top:var(--sp-1);font-size:var(--fs-xs);letter-spacing:.16em;text-transform:uppercase;color:var(--dim);}
   .mini-sub{font-size:var(--fs-xs);color:var(--dim);text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%;}
+  /* ritmo da semana: verde no ritmo, âmbar perto do limite, vermelho estourando */
+  .ritmo{text-align:center;font-size:var(--fs-xs);color:var(--teal);margin:calc(-1 * var(--sp-1)) 0 var(--sp-3);}
+  .ritmo.alto{color:var(--amarelo);}
+  .ritmo.critico{color:var(--vermelho);}
   .medidor.alto .seg.lit{fill:var(--amarelo);stroke:var(--amarelo);filter:drop-shadow(0 0 3px var(--amarelo));}
   .medidor.critico .seg.lit{fill:var(--vermelho);stroke:var(--vermelho);filter:drop-shadow(0 0 3px var(--vermelho));}
 
@@ -297,6 +301,7 @@
       <div class="mini-sub" id="medSemanalSub"></div>
     </div>
   </div>
+  <div class="ritmo" id="ritmo" hidden></div>
   </div>
 </div>
 <script>
@@ -569,12 +574,42 @@ function pintarMedidor(id, pct, sub) {
   document.getElementById(id + 'Sub').textContent = sub;
 }
 
+// Ritmo da semana, como o "On track" da página de uso do Claude: projeção
+// linear do uso desde o início da janela (reset − 7 dias) até o reset.
+// Calculado na hora da LEITURA (s.ts), não de agora: o dado do statusLine
+// pode ter horas, e projetar com o relógio atual subestimaria o ritmo.
+// Primeiros 5% da semana (~8h): pouco dado, projeção instável.
+const SEMANA_MS = 7 * 24 * 3600000;
+function ritmoSemanal(s) {
+  if (!s || !s.resetsAt || s.ts == null || typeof s.pct !== 'number') return null;
+  const inicio = s.resetsAt - SEMANA_MS;
+  const decorrido = (s.ts - inicio) / SEMANA_MS;
+  if (decorrido < 0.05 || decorrido > 1) return { estado: 'cedo' };
+  const projecao = s.pct / decorrido;
+  if (projecao <= 100) return { estado: 'ok', projecao: Math.round(projecao) };
+  return { estado: 'estoura', batida: inicio + (100 / s.pct) * (s.ts - inicio) };
+}
+const diaHora = ts => new Date(ts).toLocaleString('en-US', { weekday: 'short', hour: 'numeric', minute: '2-digit' }).replace(',', '');
+
+function renderRitmo(s) {
+  const el = document.getElementById('ritmo');
+  const r = ritmoSemanal(s);
+  el.hidden = !r;
+  el.classList.toggle('alto', !!r && r.estado === 'ok' && r.projecao > 90);
+  el.classList.toggle('critico', !!r && r.estado === 'estoura');
+  el.textContent = !r ? ''
+    : r.estado === 'cedo' ? 'Too early in the week to tell the pace'
+      : r.estado === 'ok' ? `On track · about ${r.projecao}% by reset`
+        : `Ahead of pace · limit around ${diaHora(r.batida)}`;
+}
+
 function renderUso(uso) {
+  renderRitmo(uso && uso.semanal);
   const c = uso && uso.contexto;
   pintarMedidor('medContexto', c ? c.pct : null, c ? `${tokensCurto(c.tokens)} / ${tokensCurto(c.janela)}` : 'no session yet');
   const s = uso && uso.semanal;
   if (!s) return pintarMedidor('medSemanal', null, 'run Claude in a terminal');
-  const reinicia = new Date(s.resetsAt).toLocaleString('en-US', { weekday: 'short', hour: 'numeric', minute: '2-digit' }).replace(',', '');
+  const reinicia = diaHora(s.resetsAt);
   const idade = Date.now() - s.ts;
   const velho = idade > 30 * 60000 ? ` · as of ${idadeLegivel(idade)}` : '';
   pintarMedidor('medSemanal', s.pct, `resets ${reinicia}${velho}`);

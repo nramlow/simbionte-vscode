@@ -55,6 +55,31 @@ assert.strictEqual(elementos.medSemanalSub.textContent, 'run Claude in a termina
 ctx.renderUso(undefined);
 assert.strictEqual(elementos.medSemanalPct.textContent, '–', 'extensão antiga sem uso: não quebra');
 
+// Ritmo da semana ("On track" do Claude): projeção linear do uso desde o
+// início da janela (reset − 7 dias), calculada na hora da LEITURA.
+const H = 3600000;
+const reset = new Date(2026, 10, 14, 9, 0).getTime();
+const ini = reset - 168 * H;
+const leitura = (pct, horas) => ({ pct, resetsAt: reset, ts: ini + horas * H });
+assert.deepStrictEqual(JSON.parse(JSON.stringify(ctx.ritmoSemanal(leitura(58, 104.9)))), { estado: 'ok', projecao: 93 }, '58% com 62% da semana: ~93% no reset');
+assert.strictEqual(ctx.ritmoSemanal(leitura(30, 84)).projecao, 60);
+const estouro = ctx.ritmoSemanal(leitura(80, 84));
+assert.strictEqual(estouro.estado, 'estoura');
+assert.strictEqual(estouro.batida, ini + 105 * H, '80% na metade: bate 100% com 105h de semana');
+assert.deepStrictEqual(JSON.parse(JSON.stringify(ctx.ritmoSemanal(leitura(2, 5)))), { estado: 'cedo' }, 'começo da semana: pouco dado');
+assert.strictEqual(ctx.ritmoSemanal(null), null);
+
+ctx.renderUso({ contexto: null, semanal: leitura(30, 84) });
+assert.strictEqual(elementos.ritmo.textContent, 'On track · about 60% by reset');
+assert.ok(!elementos.ritmo.classList.contains('alto'));
+ctx.renderUso({ contexto: null, semanal: leitura(58, 104.9) });
+assert.ok(elementos.ritmo.classList.contains('alto'), 'acima de 90% projetado: âmbar');
+ctx.renderUso({ contexto: null, semanal: leitura(80, 84) });
+assert.strictEqual(elementos.ritmo.textContent, 'Ahead of pace · limit around Wed 6:00 PM', 'Sáb 9h + 105h = Qua 18h');
+assert.ok(elementos.ritmo.classList.contains('critico'));
+ctx.renderUso({ contexto: null, semanal: null });
+assert.strictEqual(elementos.ritmo.hidden, true, 'sem dado semanal: some');
+
 // Rodapé fixo: os medidores ficam visíveis com a lista rolando.
 assert.ok(/\.uso-rodape\{[^}]*position:sticky[^}]*bottom:0/.test(html), 'rodapé de uso grudado embaixo');
 assert.ok(html.indexOf('class="uso-rodape"') > html.indexOf('id="hojeList"'), 'rodapé é o último bloco');
