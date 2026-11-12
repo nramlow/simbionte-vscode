@@ -9,9 +9,9 @@ const URLS_PATH = path.join(os.homedir(), '.claude', 'simbionte-urls.json');
 // progressoDoPlano vem do mesmo módulo que o hook usa — sem isso a extensão
 // teria que reimplementar o parser de checkbox. Vem empacotado em lib/
 // (prepare.js), então funciona mesmo antes de os hooks serem instalados.
-let progressoDoPlano = () => null, resumoSessoes = () => null;
+let progressoDoPlano = () => null, resumoSessoes = () => null, contextoDoTranscript = () => null;
 try {
-  ({ progressoDoPlano, resumoSessoes } = require('./lib/store.js'));
+  ({ progressoDoPlano, resumoSessoes, contextoDoTranscript } = require('./lib/store.js'));
 } catch (e) { /* rodando do repo sem prepare.js — cai pro cache do hook */ }
 const { ARQUIVOS, hooksFaltando, adicionarHooks, removerHooks, arquivosDesatualizados, statusLineFaltando } = require('./lib/hooks-settings.js');
 
@@ -243,7 +243,7 @@ function comProgressoAoVivo(projeto, currentProject) {
 // Arquivos de controle que dividem o diretório com os projetos. `_scan` é do
 // servidor, `_heartbeat` dos hooks, `_aviso_uso_*` é de OUTRA ferramenta
 // (um hook de aviso de uso) — o diretório não é exclusivo do Simbionte.
-const INTERNOS_RE = /^_(heartbeat|agentes|scan\.\d+|aviso_uso_[^/\\]*)\.json$/i;
+const INTERNOS_RE = /^_(heartbeat|agentes|uso|scan\.\d+|aviso_uso_[^/\\]*)\.json$/i;
 
 function lerTodosProjetos(currentProject) {
   if (!fs.existsSync(DIR)) return [];
@@ -302,12 +302,13 @@ class SimbiontePainelProvider {
       const atual = projetoAtual();
       const projetos = agentesNoPainel(agruparProjetos(lerTodosProjetos(atual)));
       checarTransicoes(projetos);
+      const sessao = sessaoAtual();
       // Achado 2026-09-23: o banner lia um estado recalculado pelo timer de
       // 60s e ficava na tela até um minuto DEPOIS de os hooks voltarem.
       // Aqui o estado é lido do disco na hora (ciclo de 5s); o timer de 60s
       // é só pro popup, que não pode disparar a cada poll.
       webviewView.webview.postMessage({
-        type: 'update', projetos, currentProject: atual, sessao: sessaoAtual(),
+        type: 'update', projetos, currentProject: atual, sessao, uso: usoAtual(sessao),
         insights: lerInsights(),
         // Os insights vêm com o id do catálogo ("MEU-APP-V4"); o nome
         // legível só existe no data.js, que é do lado da extensão.
@@ -380,6 +381,36 @@ function sessaoAtual() {
   const s = resumoSessoes(lerSessoes(), Date.now(), limite);
   if (s) s.limiteMin = Math.round(limite / 60000);
   return s;
+}
+
+// Medidores de uso: contexto da mesma sessão que a linha de estado mostra
+// (último trecho do transcript dela) e o limite semanal que o statusLine
+// gravou. Janela: a que o statusLine viu pra esse modelo; sem isso, 1M se o
+// uso já passou de 200k, senão 200k.
+function lerFimDoArquivo(arquivo, bytes) {
+  let fd;
+  try {
+    fd = fs.openSync(arquivo, 'r');
+    const tam = fs.fstatSync(fd).size;
+    const n = Math.min(tam, bytes);
+    const buf = Buffer.alloc(n);
+    fs.readSync(fd, buf, 0, n, tam - n);
+    return buf.toString('utf8');
+  } catch (e) { return ''; }
+  finally { if (fd !== undefined) try { fs.closeSync(fd); } catch (e) { /* já fechado */ } }
+}
+
+function usoAtual(sessao) {
+  let uso = {};
+  try { uso = JSON.parse(fs.readFileSync(path.join(DIR, '_uso.json'), 'utf8')); } catch (e) { /* statusLine ainda não rodou */ }
+  let contexto = null;
+  const reg = sessao && lerSessoes()[sessao.sessionId];
+  const c = reg && reg.transcript ? contextoDoTranscript(lerFimDoArquivo(reg.transcript, 512 * 1024)) : null;
+  if (c) {
+    const janela = ((uso.janelas || {})[c.modelo]) || (c.tokens > 200000 ? 1000000 : 200000);
+    contexto = { pct: Math.min(100, (c.tokens / janela) * 100), tokens: c.tokens, janela };
+  }
+  return { contexto, semanal: uso.semanal || null };
 }
 
 // Popup só na transição pra "travada", uma vez por episódio de cada sessão.
