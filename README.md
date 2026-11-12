@@ -47,7 +47,8 @@ sent anywhere.
   — agents, test runs, commits — start nothing new, and stop; while paused,
   Symbiont's hooks refuse new agents and background commands. The row shows
   *pausing…* and then *paused · safe to reload*. After the reload, ▶ tells
-  them to continue.
+  them to continue, or run **Symbiont: Resume paused sessions** to resume
+  them all at once.
 - **Programmes** — when one piece of work spans several plans (one per
   sub-project, each in its own worktree), list them in
   `.symbiont/programme.json` in the main checkout and the top ring shows the

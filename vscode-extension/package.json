@@ -68,6 +68,10 @@
       {
         "command": "simbionte.mostrarPadrao",
         "title": "Symbiont: Show usage pattern"
+      },
+      {
+        "command": "simbionte.retomarTudo",
+        "title": "Symbiont: Resume paused sessions"
       }
     ],
     "configuration": {

@@ -155,6 +155,21 @@ function anexarPausas(projetos) {
     return { ...p, pausa: { estado: todas ? 'pausado' : 'pausando', agentes, shells, sessoes: ids.length } };
   });
 }
+// Comando "Symbiont: Resume paused sessions": retoma TODAS as sessões
+// pausadas de uma vez — depois de um reload é mais rápido que achar cada ▶.
+async function retomarTudo() {
+  if (!pausaLib) return;
+  const ids = Object.keys(lerPausa().sessoes);
+  if (!ids.length) return vscode.window.showInformationMessage('Symbiont: no paused sessions.');
+  const sessoes = lerSessoes();
+  retomarSessoes(ids);
+  const enviados = await Promise.all(ids.map(id => pausaLib.enviar(sessoes[id] && sessoes[id].inbox, 'Symbiont', pausaLib.MENSAGEM_RETOMA)));
+  const falhas = enviados.filter(x => !x).length;
+  vscode.window.showInformationMessage(`Symbiont: resumed ${ids.length} session${ids.length === 1 ? '' : 's'}.`
+    + (falhas ? ` ${falhas} couldn't be messaged; tell ${falhas === 1 ? 'it' : 'them'} to continue.` : ''));
+  if (enviarAtual) enviarAtual();
+}
+
 async function pausarOuRetomar(acao, ids) {
   if (!pausaLib) return;
   const linhas = ultimosProjetos.filter(p => ids.includes(p.projectId));
@@ -622,6 +637,7 @@ function activate(context) {
     vscode.commands.registerCommand('simbionte.instalarHooks', () => instalarHooks(context.extensionUri)),
     vscode.commands.registerCommand('simbionte.removerHooks', removerHooksCmd),
     vscode.commands.registerCommand('simbionte.mostrarPadrao', () => mostrarPadrao(context.extensionUri)),
+    vscode.commands.registerCommand('simbionte.retomarTudo', retomarTudo),
     vscode.workspace.onDidChangeConfiguration(e => {
       if ((e.affectsConfiguration('simbionte.stuckThresholdMinutes') || e.affectsConfiguration('simbionte.limiteTravadoMin')) && enviarAtual) enviarAtual();
     })
