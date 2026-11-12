@@ -32,6 +32,24 @@ try {
 // Padrão de uso por hora (padrao.js): varre os transcripts do Claude Code em
 // segundo plano (assíncrono — não trava o VS Code), uma varredura por vez,
 // e guarda em _padrao.json pra não reler tudo a cada abertura.
+// Atualizar sem recarregar o VS Code (vigia.js): a instalação reaproveita a
+// mesma pasta da extensão, então dá pra vigiar os próprios arquivos.
+let criarVigia = null;
+try { ({ criarVigia } = require('./lib/vigia.js')); } catch (e) { /* rodando do repo sem prepare.js */ }
+// Assinatura pelo CONTEÚDO: todo empacotamento regrava todos os arquivos,
+// então data de modificação acusaria mudança de código num update só de painel.
+const assinaturaDe = arquivos => { try { const h = require("crypto").createHash("sha1"); for (const a of arquivos) h.update(fs.readFileSync(a)); return h.digest("hex"); } catch (e) { return null; } };
+function arquivosDeCodigo(dir) {
+  const lista = [];
+  (function andar(d) {
+    for (const e of fs.readdirSync(d, { withFileTypes: true })) {
+      const p = path.join(d, e.name);
+      if (e.isDirectory()) andar(p); else if (e.name.endsWith(".js")) lista.push(p);
+    }
+  })(dir);
+  return lista.sort();
+}
+
 let padraoLib = null;
 try { padraoLib = require('./lib/padrao.js'); } catch (e) { /* rodando do repo sem prepare.js */ }
 let padraoEstado = null;
@@ -379,7 +397,14 @@ class SimbiontePainelProvider {
     // carga (sem emitir 'error') — poll de reserva garante no máximo alguns
     // segundos de atraso mesmo se o watcher morrer. Upgrade se não bastar:
     // watcher.on('error', ...) recriando o watch.
-    const pollFallback = setInterval(enviar, 5000);
+    // Painel novo instalado (build.html mudou): recarrega só o painel, sem
+    // reload do VS Code. Reenvia os dados depois que a página carrega.
+    const htmlPainel = vscode.Uri.joinPath(this.extensionUri, 'media', 'build.html').fsPath;
+    const vigiaPainel = criarVigia ? criarVigia(() => assinaturaDe([htmlPainel]), () => {
+      webviewView.webview.html = this._html();
+      setTimeout(enviar, 800);
+    }) : () => {};
+    const pollFallback = setInterval(() => { vigiaPainel(); enviar(); }, 5000);
     const msgListener = webviewView.webview.onDidReceiveMessage(msg => {
       if (!msg) return;
       if (msg.type === 'openApp') {
@@ -490,6 +515,19 @@ function activate(context) {
     vscode.window.registerWebviewViewProvider('simbionte.painel', provider)
   );
   const timer = iniciarAlertaTravamento();
+  // Código da extensão novo instalado: o painel já se atualiza sozinho; os
+  // hooks em ~/.claude também (arquivos empacotados novos). O resto do código
+  // só carrega num reload — avisa, sem forçar.
+  if (criarVigia) {
+    const raizExt = context.extensionUri.fsPath;
+    const vigiaCodigo = criarVigia(() => { try { return assinaturaDe(arquivosDeCodigo(path.join(raizExt, 'lib')).concat(path.join(raizExt, 'extension.js'))); } catch (e) { return null; } }, () => {
+      const trocados = atualizarArquivosInstalados(context.extensionUri, lerSettings());
+      vscode.window.showInformationMessage('Symbiont was updated. The panel already shows the new version' + (trocados.length ? ' and the hooks are updated' : '') + '; reload VS Code when convenient for the rest.', 'Reload now')
+        .then(escolha => { if (escolha) vscode.commands.executeCommand('workbench.action.reloadWindow'); });
+    });
+    const vigiaTimer = setInterval(vigiaCodigo, 5000);
+    context.subscriptions.push({ dispose: () => clearInterval(vigiaTimer) });
+  }
   // Padrão de uso: 1ª varredura 5s depois de abrir (não atrasa a ativação), depois a cada 10 min.
   const primeiraVarredura = setTimeout(atualizarPadrao, 5000);
   const varreduras = setInterval(atualizarPadrao, 10 * 60 * 1000);
