@@ -19,7 +19,7 @@
 - Create: `test/test_agentes.js`
 - Modify: `test/test_rotulo_plano.js`
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 `test/test_agentes.js`:
 
@@ -102,12 +102,12 @@ Append to `test/test_rotulo_plano.js`, before its `console.log`:
   assert.strictEqual(progressoDoPlano(path.join(planos, 'd.md')).tarefas, null, 'sem títulos Task: null');
 ```
 
-- [ ] **Step 2: Run them to verify they fail**
+- [x] **Step 2: Run them to verify they fail**
 
 Run: `node test/test_agentes.js; node test/test_rotulo_plano.js`
 Expected: FAIL (`aplicarEventoAgente is not a function`; `tarefas` undefined)
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 In `store.js`, in `progressoDoPlano`'s returned object, add after `updatedAt: Date.now(),`:
 
@@ -215,12 +215,12 @@ function registrarEventoAgente(data) {
 
 Add `aplicarEventoAgente, registrarEventoAgente` to `module.exports`.
 
-- [ ] **Step 4: Run them to verify they pass**
+- [x] **Step 4: Run them to verify they pass**
 
 Run: `node test/test_agentes.js && node test/test_rotulo_plano.js`
 Expected: both `OK:` lines.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add store.js test/test_agentes.js test/test_rotulo_plano.js
@@ -234,7 +234,7 @@ git commit -m "feat(store): live agents per session and task counts from plan he
 - Modify: `hooks-settings.js` (HOOKS), `vscode-extension/prepare.js` (copy `agentes.js`), `vscode-extension/extension.js` (INTERNOS_RE, require, `enviar`, update prompt text)
 - Modify: `test/test_agentes.js` (append before its final `console.log`)
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 Insert into `test/test_agentes.js` before `console.log('OK: agentes vivos…')`:
 
@@ -286,12 +286,12 @@ for (const ev2 of ['PreToolUse', 'SubagentStart', 'SubagentStop', 'Stop']) {
 assert.strictEqual(HOOKS.find(h => h.evento === 'PreToolUse' && h.file === 'agentes-hook.js').matcher, 'Agent');
 ```
 
-- [ ] **Step 2: Run to verify it fails**
+- [x] **Step 2: Run to verify it fails**
 
 Run: `node test/test_agentes.js`
 Expected: FAIL with `Cannot find module '../agentes.js'`
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 `claude-hooks/agentes-hook.js`:
 
@@ -407,12 +407,12 @@ try {
 - In `enviar`: `const projetos = agentesNoPainel(agruparProjetos(lerTodosProjetos(atual)));`
 - Update prompt text: `'Symbiont: new hooks are available (agent view, session state) — update to get them.'`
 
-- [ ] **Step 4: Run to verify it passes**
+- [x] **Step 4: Run to verify it passes**
 
 Run: `node test/test_agentes.js && node test/test_hooks_settings.js && node vscode-extension/prepare.js && node --check vscode-extension/extension.js`
 Expected: `OK:` lines, `lib/ pronta`, no syntax error.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add claude-hooks/agentes-hook.js agentes.js hooks-settings.js vscode-extension/prepare.js vscode-extension/extension.js test/test_agentes.js
@@ -425,7 +425,7 @@ git commit -m "feat: agentes-hook records live subagents; extension maps them to
 - Modify: `vscode-extension/media/build.html`
 - Create: `test/test_agentes_painel.js`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 `test/test_agentes_painel.js`:
 
@@ -495,12 +495,12 @@ assert.ok(elementos.statusList.innerHTML.includes('2 projects · governance-shel
 console.log('OK: painel mostra Task N/total com estado e os agentes vivos');
 ```
 
-- [ ] **Step 2: Run to verify it fails**
+- [x] **Step 2: Run to verify it fails**
 
 Run: `node test/test_agentes_painel.js`
 Expected: FAIL on the first assertion.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 CSS, after the `.grupo-membro.clickable:hover` line:
 
@@ -564,12 +564,12 @@ In `cardGrupo`, the folded summary becomes:
     : '';
 ```
 
-- [ ] **Step 4: Run to verify it passes, then the full suite**
+- [x] **Step 4: Run to verify it passes, then the full suite**
 
 Run: `node test/test_agentes_painel.js && node test-all.js`
 Expected: `OK:` line; `Todas as 29 suítes rodadas passaram.`
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add vscode-extension/media/build.html test/test_agentes_painel.js
@@ -578,6 +578,6 @@ git commit -m "feat(panel): Task N/total with agent state, and live agent lines"
 
 ### Task 4: Docs, build, install, real check
 
-- [ ] **Step 1: CHANGELOG and README** — CHANGELOG 1.2.0: "Agent view: each row shows `Task N/total · implementing / in review / fixing` and its live subagents (new `agentes-hook.js` on PreToolUse(Agent), SubagentStart, SubagentStop, Stop). Agents map to worktrees through descriptions like `governance-shell: Task 12 implement – title`." README: add `agentes-hook.js` to the files list (now 5) and its row to the hooks table; a "What it shows" bullet for agents.
-- [ ] **Step 2: Full suite, package, install, push** — `node test-all.js`, package + `code --install-extension --force`, commit, `git push origin main`, CI green.
+- [x] **Step 1: CHANGELOG and README** — CHANGELOG 1.2.0: "Agent view: each row shows `Task N/total · implementing / in review / fixing` and its live subagents (new `agentes-hook.js` on PreToolUse(Agent), SubagentStart, SubagentStop, Stop). Agents map to worktrees through descriptions like `governance-shell: Task 12 implement – title`." README: add `agentes-hook.js` to the files list (now 5) and its row to the hooks table; a "What it shows" bullet for agents.
+- [x] **Step 2: Full suite, package, install, push** — `node test-all.js`, package + `code --install-extension --force`, commit, `git push origin main`, CI green.
 - [ ] **Step 3: Real check** — after a reload Nik clicks **Update hooks**; `~/.claude/settings.json` gains the 4 entries; once a CI session launches an agent, `_agentes.json` fills and the row shows it.

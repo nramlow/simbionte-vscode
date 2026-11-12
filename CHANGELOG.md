@@ -12,6 +12,7 @@ Symbiont: English fork of [Simbionte](https://github.com/dragonfurioso35-art/sim
 - The "open" arrow on cards points right instead of up (it read as "collapse").
 - The "building:" label says where you are in big plans: "Phase 1 › Task 2 › Step 1: …", from the Phase/Task headings above the next unticked step.
 - With no active plan (none, or a finished plan followed by more work), the ring says "no active plan" and shows the file being edited, instead of an empty "0 / 0 steps · system idle".
+- Agent view: each row shows `Task N/total · implementing / in review / fixing` and its live subagents (new `agentes-hook.js` on PreToolUse(Agent), SubagentStart, SubagentStop, Stop). Agents map to worktrees through descriptions like `governance-shell: Task 12 implement – title`.
 - Fix: the "checkbox edited via Bash" warning no longer fires when nothing was ticked — e.g. the first time a plan shows up in a command like `cat` or `git add`, or when only the plan's item count changed. Warnings recorded that way clear on the plan's next update.
 - Updating the extension now refreshes its hook files in `~/.claude/` when they're out of date (only if the hooks are installed; `settings.json` is never touched). Before, fixes to the hooks only arrived after running **Install Claude Code hooks** again.
 - Fix: on Windows, a hook update could be lost when the panel was reading the same file at that moment (the atomic rename failed with EPERM and left a `.json.tmp` behind). The rename now retries for up to about 200 ms.
