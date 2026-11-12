@@ -188,6 +188,13 @@
   .grupo-membro.atual{background:var(--glass-hi);}
   .grupo-membro.clickable:hover{background:rgba(63,232,196,.06);}
 
+  /* agentes vivos da linha (subagentes: implementer, reviewer…) */
+  .agentes{margin-top:3px;display:flex;flex-direction:column;gap:1px;}
+  .agente{color:var(--dim);font-size:var(--fs-xs);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .agente::before{content:"";display:inline-block;width:5px;height:5px;border-radius:50%;background:var(--teal);
+    margin-right:6px;vertical-align:middle;box-shadow:0 0 6px var(--teal);}
+  .agente-tipo{color:var(--text);}
+
   .proj-item{background:var(--glass);border:1px solid var(--edge);border-radius:var(--r-lg);
     padding:var(--sp-2) var(--sp-3);margin-bottom:var(--sp-2);font-size:var(--fs-xs);box-shadow:var(--shadow-1);}
   .proj-nome{color:var(--text);font-weight:600;}
@@ -205,6 +212,7 @@
      nos extremos estreitos, e ganha respiro nos largos. */
   @container painel (max-width: 210px){
     .status-info{display:none;}
+    .agentes{display:none;}
     .status-row.atual .status-nome{font-size:var(--fs-md);}
   }
   @container painel (min-width: 360px){
@@ -287,11 +295,33 @@ function progressoEfetivo(p) {
   return atividadeAposConclusao ? null : progressBruto;
 }
 
+// "Task 11" do rótulo vira "Task 11/20", mais o que o agente daquela tarefa
+// está fazendo (implementing / in review / fixing) — o mais novo ganha.
+const PAPEL = { implement: 'implementing', review: 'in review', fix: 'fixing' };
+function rotuloComTarefa(p, progress) {
+  const rotulo = progress.activeLabel;
+  const t = progress.tarefas;
+  if (!t || !t.atual) return rotulo;
+  const agente = (p.agentes || []).find(a => a.convencao && a.convencao.tarefa === t.atual.numero);
+  const marca = `Task ${t.atual.numero}/${t.total}${agente ? ' · ' + PAPEL[agente.convencao.papel] : ''}`;
+  return /\bTask \d+\b/.test(rotulo) ? rotulo.replace(/\bTask \d+\b/, marca) : `${marca} › ${rotulo}`;
+}
+
+function linhasAgentes(p) {
+  const ags = p.agentes || [];
+  if (!ags.length) return '';
+  return `<div class="agentes">${ags.map(a => {
+    const c = a.convencao;
+    const texto = c ? `Task ${c.tarefa} ${c.papel}${c.titulo ? ' – ' + c.titulo : ''}` : (a.descricao || '');
+    return `<div class="agente"><span class="agente-tipo">${escapeHtml(a.tipo)}</span> ${escapeHtml(texto)} <span class="status-tempo">${tempoRelativo(a.inicio)}</span></div>`;
+  }).join('')}</div>`;
+}
+
 function infoLinha(p) {
   const progress = progressoEfetivo(p);
   const atividades = p.activity || [];
   const temAtividade = !!atividades.length;
-  if (progress && progress.activeLabel) return `building: ${escapeHtml(progress.activeLabel)}`;
+  if (progress && progress.activeLabel) return `building: ${escapeHtml(rotuloComTarefa(p, progress))}`;
   if (progress && progress.total) return 'task complete';
   if (temAtividade) return `active: ${escapeHtml(atividades[0].file)}`;
   return 'system idle';
@@ -337,6 +367,7 @@ function cardProjeto(p, currentProject, primeiro) {
       <div class="status-body">
         <div class="status-nome">${escapeHtml(p.projectName)} <span class="status-tempo">${tempoRelativo(ultima)}</span></div>
         <div class="status-info">${infoLinha(p)}</div>
+        ${linhasAgentes(p)}
         ${barra}
       </div>
       ${aviso}
@@ -356,6 +387,7 @@ function linhaMembro(p, currentProject, nome) {
       <div class="status-body">
         <div class="status-nome">${escapeHtml(nome)} <span class="status-tempo">${tempoRelativo(ultima)}</span></div>
         <div class="status-info">${infoLinha(p)}</div>
+        ${linhasAgentes(p)}
       </div>
       ${progress ? `<span class="status-pct">${progress.percent || 0}%</span>` : ''}
       ${(p.progress && p.progress.viaBash) ? avisoBash() : ''}
@@ -371,8 +403,9 @@ function cardGrupo(g, currentProject, primeiro) {
   const raiz = normCaminho(novo.grupo.raiz);
   const nomeDe = p => (raiz && normCaminho(p.projectPath) === raiz) ? 'main checkout' : p.projectName;
   const aviso = g.membros.some(p => p.progress && p.progress.viaBash) ? avisoBash() : '';
+  const nAgentes = g.membros.reduce((n, p) => n + (p.agentes || []).length, 0);
   const resumo = dobrado
-    ? `<div class="status-info">${g.membros.length} projects · ${escapeHtml(nomeDe(novo))}: ${infoLinha(novo)}</div>`
+    ? `<div class="status-info">${g.membros.length} projects · ${escapeHtml(nomeDe(novo))}: ${infoLinha(novo)}${nAgentes ? ` · ${nAgentes} agent${nAgentes > 1 ? 's' : ''}` : ''}</div>`
     : '';
   const membros = dobrado
     ? ''
@@ -515,7 +548,7 @@ function renderReator(projetos, currentProject) {
     : `${progress.completed || 0} / ${progress.total || 0} steps`;
   document.getElementById('reactorLabel').innerHTML = expirado
     ? (arquivo ? `active: <b>${escapeHtml(arquivo)}</b>` : 'system idle')
-    : (progress.activeLabel ? `building: <b>${escapeHtml(progress.activeLabel)}</b>`
+    : (progress.activeLabel ? `building: <b>${escapeHtml(rotuloComTarefa(alvo, progress))}</b>`
       : (progress.total ? 'task complete' : 'system idle'));
 }
 
