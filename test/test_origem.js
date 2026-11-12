@@ -79,6 +79,13 @@ try {
   agruparProjetos([proj('a', main)], p => { chamadas++; return origemDoProjeto(p); });
   assert.strictEqual(chamadas, 1, 'origemDe é injetável (a extensão passa uma versão com cache)');
 
+  // Linha de pasta apagada (worktree removido) some do painel; projeto sem
+  // caminho conhecido fica. O histórico no disco não é tocado.
+  const { soPastasExistentes } = require('../origem.js');
+  const vis = soPastasExistentes([proj('a', main), proj('gone', apagado), proj('sem', undefined)]);
+  assert.deepStrictEqual(vis.map(p => p.projectId), ['a', 'sem'], 'pasta que não existe mais: some');
+  assert.deepStrictEqual(soPastasExistentes([proj('x', 'C:/y')], () => true).length, 1, 'existe injetável');
+
   console.log('OK: origem do projeto (worktree, sub-pasta, clone ssh, sem origin, fora do git)');
 } finally {
   fs.rmSync(tmp, { recursive: true, force: true });

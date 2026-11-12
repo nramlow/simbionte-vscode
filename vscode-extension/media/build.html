@@ -817,8 +817,11 @@ function renderSessao(s) {
 
 function render(projetos, currentProject, sessao, insights, uso, padrao) {
   renderSessao(sessao);
-  renderReator(projetos, currentProject);
-  renderStatusList(projetos, currentProject);
+  // oculto = pasta apagada (worktree removido): fora das linhas e do anel,
+  // mas as edições de hoje continuam contando.
+  const visiveis = projetos.filter(p => !p.oculto);
+  renderReator(visiveis, currentProject);
+  renderStatusList(visiveis, currentProject);
   renderInsights(insights);
   renderHoje(projetos);
   renderUso(uso, padrao);

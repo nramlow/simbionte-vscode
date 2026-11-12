@@ -19,6 +19,7 @@ const { ARQUIVOS, hooksFaltando, adicionarHooks, removerHooks, arquivosDesatuali
 // Cache por caminho: a origem de uma pasta não muda durante a sessão, e o
 // painel reenvia a lista a cada 5s.
 let agruparProjetos = projetos => projetos;
+let marcarOcultos = projetos => projetos;
 try {
   const origem = require('./lib/origem.js');
   const cache = new Map();
@@ -27,6 +28,9 @@ try {
     return cache.get(p);
   };
   agruparProjetos = projetos => origem.agruparProjetos(projetos, origemMemo);
+  // Pasta apagada (worktree removido): a linha some do painel, mas o projeto
+  // segue na lista marcado — as edições de hoje continuam contando.
+  marcarOcultos = projetos => { const vivos = new Set(origem.soPastasExistentes(projetos)); return projetos.map(p => (vivos.has(p) ? p : { ...p, oculto: true })); };
 } catch (e) { /* rodando do repo sem prepare.js — cards sem grupo, como antes */ }
 
 // Padrão de uso por hora (padrao.js): varre os transcripts do Claude Code em
@@ -366,7 +370,7 @@ class SimbiontePainelProvider {
     };
     const enviar = () => {
       const atual = projetoAtual();
-      const projetos = agentesNoPainel(agruparProjetos(lerTodosProjetos(atual)));
+      const projetos = marcarOcultos(agentesNoPainel(agruparProjetos(lerTodosProjetos(atual))));
       checarTransicoes(projetos);
       const sessao = sessaoAtual();
       const uso = usoAtual(sessao);

@@ -67,6 +67,14 @@ assert.ok(out.includes('3 projects · ui: active: formDirty.ts'), 'dobrado: resu
 assert.ok(out.includes('aria-expanded="false"'));
 assert.deepStrictEqual(JSON.parse(JSON.stringify(estado.dobrados)), { 'dev.azure.com/org/ci': true }, 'estado de dobra salvo pro reload');
 
+// Pasta apagada (oculto): sai das linhas, mas a edição de hoje conta.
+const hojeChave = (() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; })();
+const comOculto = [...projetos, { ...proj('governance-ux', R + '\\.worktrees\\governance-ux', 300), oculto: true, today: { date: hojeChave, count: 7 } }];
+ctx.render(comOculto, 'simbionte-vscode', null, null, null, null);
+assert.ok(!elementos.statusList.innerHTML.includes('governance-ux'), 'linha de pasta apagada some');
+assert.strictEqual(elementos.statusCount.textContent, '4', 'contador só conta as visíveis');
+assert.ok(elementos.hojeTitle.textContent.includes('7 edits'), 'edições de hoje da pasta apagada continuam contando');
+
 ctx.renderStatusList(projetos.map(p => ({ ...p, grupo: undefined })), null);
 assert.strictEqual((elementos.statusList.innerHTML.match(/class="status-row/g) || []).length, 4, 'sem grupo (extensão antiga): cards como antes');
 

@@ -90,4 +90,11 @@ function agruparProjetos(projetos, origemDe = origemDoProjeto) {
   });
 }
 
-module.exports = { normalizarUrl, origemDoProjeto, agruparProjetos };
+// Linha cuja pasta não existe mais (worktree removido depois do merge) sai
+// do painel — pedido do Nik, 2026-11-12. Projeto sem caminho conhecido fica.
+// O arquivo em ~/.claude/simbionte/ continua (histórico, contagem de hoje).
+function soPastasExistentes(projetos, existe = fs.existsSync) {
+  return projetos.filter(p => !p.projectPath || existe(p.projectPath));
+}
+
+module.exports = { normalizarUrl, origemDoProjeto, agruparProjetos, soPastasExistentes };
