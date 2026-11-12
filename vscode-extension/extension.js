@@ -29,6 +29,17 @@ try {
   agruparProjetos = projetos => origem.agruparProjetos(projetos, origemMemo);
 } catch (e) { /* rodando do repo sem prepare.js — cards sem grupo, como antes */ }
 
+// Agentes vivos (agentes-hook -> _agentes.json) ligados às linhas.
+let agentesNoPainel = projetos => projetos;
+try {
+  const ag = require('./lib/agentes.js');
+  agentesNoPainel = projetos => {
+    let estado = null;
+    try { estado = JSON.parse(fs.readFileSync(path.join(DIR, '_agentes.json'), 'utf8')); } catch (e) { /* sem agentes ainda */ }
+    return ag.anexarAgentes(projetos, ag.agentesAtivos(estado, Date.now()));
+  };
+} catch (e) { /* rodando do repo sem prepare.js — sem agentes, como antes */ }
+
 const CLAUDE_DIR = path.join(os.homedir(), '.claude');
 const SETTINGS_PATH = path.join(CLAUDE_DIR, 'settings.json');
 function lerSettings() {
@@ -227,7 +238,7 @@ function comProgressoAoVivo(projeto, currentProject) {
 // Arquivos de controle que dividem o diretório com os projetos. `_scan` é do
 // servidor, `_heartbeat` dos hooks, `_aviso_uso_*` é de OUTRA ferramenta
 // (um hook de aviso de uso) — o diretório não é exclusivo do Simbionte.
-const INTERNOS_RE = /^_(heartbeat|scan\.\d+|aviso_uso_[^/\\]*)\.json$/i;
+const INTERNOS_RE = /^_(heartbeat|agentes|scan\.\d+|aviso_uso_[^/\\]*)\.json$/i;
 
 function lerTodosProjetos(currentProject) {
   if (!fs.existsSync(DIR)) return [];
@@ -284,7 +295,7 @@ class SimbiontePainelProvider {
     };
     const enviar = () => {
       const atual = projetoAtual();
-      const projetos = agruparProjetos(lerTodosProjetos(atual));
+      const projetos = agentesNoPainel(agruparProjetos(lerTodosProjetos(atual)));
       checarTransicoes(projetos);
       // Achado 2026-09-23: o banner lia um estado recalculado pelo timer de
       // 60s e ficava na tela até um minuto DEPOIS de os hooks voltarem.
@@ -411,7 +422,7 @@ function activate(context) {
     const nenhum = faltando.length === hooksFaltando({}).length;
     vscode.window.showInformationMessage(
       nenhum ? 'Symbiont: Claude Code hooks are not installed yet.'
-        : 'Symbiont: new hooks are available (session state) — update to stop false "stuck" alerts.',
+        : 'Symbiont: new hooks are available (agent view, session state) — update to get them.',
       nenhum ? 'Install now' : 'Update hooks')
       .then(escolha => { if (escolha) instalarHooks(context.extensionUri); });
   }

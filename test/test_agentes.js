@@ -63,5 +63,51 @@ const congelado = { sessoes: { s9: { cwd: null, pendentes: [], agentes: { q: { t
 aplicarEventoAgente(congelado, { hook_event_name: 'Stop', session_id: 's8' }, T + 20 * 60000);
 assert.ok(congelado.sessoes.s9.agentes.q, 'não muta o estado recebido');
 
+const { lerConvencao, agentesAtivos, anexarAgentes } = require('../agentes.js');
+assert.deepStrictEqual(lerConvencao(DESC_I), { worktree: 'governance-shell', tarefa: 12, papel: 'implement', titulo: 'customer storage URL' });
+assert.deepStrictEqual(lerConvencao('policy-model-1: Task 7 Review'), { worktree: 'policy-model-1', tarefa: 7, papel: 'review', titulo: '' });
+assert.strictEqual(lerConvencao('Shell Task 11: access in URL'), null, 'fora da convenção');
+
+const CI = path.join(home, 'CI');
+const estado = { sessoes: { s1: { cwd: CI, pendentes: [], agentes: {
+  a: { tipo: 'implementer', descricao: 'governance-shell: Task 12 implement – x', inicio: T, fim: null },
+  b: { tipo: 'deep-reviewer', descricao: 'governance-shell: Task 11 review', inicio: T + 1, fim: null },
+  c: { tipo: 'Explore', descricao: 'find usages', inicio: T + 2, fim: null },
+  d: { tipo: 'implementer', descricao: 'policy-model-1: Task 7 fix – y', inicio: T, fim: T + 5 },
+} } } };
+const ativos = agentesAtivos(estado, T + 10);
+assert.deepStrictEqual(ativos.map(a => a.id), ['c', 'b', 'a'], 'só os vivos, mais novo primeiro');
+assert.strictEqual(ativos[1].convencao.tarefa, 11);
+const projs = [
+  { projectId: 'Communication-Intelligence', projectPath: CI },
+  { projectId: 'governance-shell', projectPath: path.join(CI, '.worktrees', 'governance-shell') },
+  { projectId: 'ui', projectPath: path.join(CI, '.worktrees', 'governance-shell', 'ui') },
+  { projectId: 'outro', projectPath: path.join(home, 'outro') },
+];
+const com = anexarAgentes(projs, ativos);
+const de = id => (com.find(p => p.projectId === id).agentes || []).map(a => a.id);
+assert.deepStrictEqual(de('governance-shell'), ['b', 'a'], 'pela convenção');
+assert.deepStrictEqual(de('Communication-Intelligence'), ['c'], 'sem convenção: pasta da sessão');
+assert.deepStrictEqual(de('ui'), []);
+assert.strictEqual(com[3], projs[3], 'projeto sem agentes passa intacto');
+assert.deepStrictEqual(anexarAgentes(projs, agentesAtivos(null, T)), projs, 'sem _agentes.json: nada muda');
+
+const claude = path.join(home, '.claude');
+fs.mkdirSync(claude, { recursive: true });
+fs.copyFileSync(path.join(__dirname, '..', 'claude-hooks', 'agentes-hook.js'), path.join(claude, 'agentes-hook.js'));
+fs.copyFileSync(path.join(__dirname, '..', 'store.js'), path.join(claude, 'simbionte-store.js'));
+const rodar = bruto => execFileSync(process.execPath, [path.join(claude, 'agentes-hook.js')], { input: bruto, encoding: 'utf8' });
+assert.strictEqual(rodar(JSON.stringify(ev({ hook_event_name: 'PreToolUse', tool_name: 'Agent', tool_input: { description: 'governance-shell: Task 3 review', subagent_type: 'deep-reviewer' } }))), '', 'hook não escreve em stdout');
+rodar(JSON.stringify(ev({ hook_event_name: 'SubagentStart', agent_id: 'z1', agent_type: 'deep-reviewer' })));
+const gravado = JSON.parse(fs.readFileSync(path.join(claude, 'simbionte', '_agentes.json'), 'utf8'));
+assert.strictEqual(gravado.sessoes.s1.agentes.z1.descricao, 'governance-shell: Task 3 review');
+assert.strictEqual(rodar('{isto não é json'), '', 'payload inválido: sai quieto');
+
+const { HOOKS } = require('../hooks-settings.js');
+for (const ev2 of ['PreToolUse', 'SubagentStart', 'SubagentStop', 'Stop']) {
+  assert.ok(HOOKS.some(h => h.evento === ev2 && h.file === 'agentes-hook.js'), `agentes-hook registrado em ${ev2}`);
+}
+assert.strictEqual(HOOKS.find(h => h.evento === 'PreToolUse' && h.file === 'agentes-hook.js').matcher, 'Agent');
+
 console.log('OK: agentes vivos por sessão (início, fim, lista do Stop, limpeza)');
 fs.rmSync(home, { recursive: true, force: true });
