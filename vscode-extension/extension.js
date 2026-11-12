@@ -29,6 +29,9 @@ try {
   agruparProjetos = projetos => origem.agruparProjetos(projetos, origemMemo);
 } catch (e) { /* rodando do repo sem prepare.js — cards sem grupo, como antes */ }
 
+let transicoes = null;
+try { ({ transicoes } = require('./lib/transicoes.js')); } catch (e) { /* rodando do repo sem prepare.js — sem notificações */ }
+
 // Agentes vivos (agentes-hook -> _agentes.json) ligados às linhas.
 let agentesNoPainel = projetos => projetos;
 try {
@@ -264,23 +267,19 @@ function lerTodosProjetos(currentProject) {
     .map(p => comProgressoAoVivo(p, currentProject));
 }
 
-// Notificação real de SO só na TRANSIÇÃO (plano bateu 100%, ou um checkbox
-// foi fechado via Bash) — nunca a cada poll de 5s, senão vira spam. Guarda
-// o último estado conhecido de cada projeto em memória.
-const estadoConhecido = new Map();
+// Notificação real de SO só na TRANSIÇÃO (transicoes.js). O último estado
+// conhecido vai pro globalState do VS Code: em memória, todo reload
+// renotificava cada plano já concluído.
+const CHAVE_TRANSICOES = 'simbionte.transicoes';
+let estadoGlobal = null; // context.globalState, setado no activate
 function checarTransicoes(projetos) {
-  for (const p of projetos) {
-    const anterior = estadoConhecido.get(p.projectId) || {};
-    const percentAtual = p.progress ? p.progress.percent : null;
-    if (percentAtual === 100 && anterior.percent !== 100) {
-      notificar('Symbiont', `Plan complete: ${p.projectName}`);
-    }
-    const viaBashAtual = !!(p.progress && p.progress.viaBash);
-    if (viaBashAtual && !anterior.viaBash) {
-      notificar('Symbiont — GOLDEN RULE', `Checkbox edited via Bash in ${p.projectName} — use Edit/Write instead`);
-    }
-    estadoConhecido.set(p.projectId, { percent: percentAtual, viaBash: viaBashAtual });
+  if (!transicoes) return;
+  const r = transicoes(estadoGlobal ? estadoGlobal.get(CHAVE_TRANSICOES) : undefined, projetos);
+  for (const a of r.avisos) {
+    if (a.tipo === 'concluido') notificar('Symbiont', `Plan complete: ${a.nome}`);
+    else notificar('Symbiont — GOLDEN RULE', `Checkbox edited via Bash in ${a.nome} — use Edit/Write instead`);
   }
+  if (r.mudou && estadoGlobal) estadoGlobal.update(CHAVE_TRANSICOES, r.conhecidos);
 }
 
 let enviarAtual = null;
@@ -433,6 +432,7 @@ function iniciarAlertaTravamento() {
 }
 
 function activate(context) {
+  estadoGlobal = context.globalState;
   const provider = new SimbiontePainelProvider(context.extensionUri);
   context.subscriptions.push(
     vscode.window.registerWebviewViewProvider('simbionte.painel', provider)
