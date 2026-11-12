@@ -208,6 +208,7 @@ function progressoDoPlano(file) {
       ? (rotuloDoProximo(texto) || proxima.replace(/^- \[ \]\s*/, '').replace(/\*\*/g, '').slice(0, 80))
       : null,
     updatedAt: Date.now(),
+    tarefas: tarefasDoPlano(texto),
   };
 }
 
@@ -392,4 +393,98 @@ function resumoSessoes(sessoes, agora, limiteMs) {
   return escolhida;
 }
 
-module.exports = { resolverProjeto, resolverProjetoAtivo, lerProjeto, atualizarProgresso, registrarAtividade, registrarHeartbeat, estadoDaSessao, resumoSessoes, progressoDoPlano, projetosExtrasDoPlano, registrarToque, viaBashNovo };
+// Tarefas do plano (títulos "Task N", qualquer nível) pra linha mostrar
+// "Task 11/20". Tarefa sem checkbox não conta; feita = todos os passos
+// marcados; atual = a primeira com passo aberto. Título de nível igual ou
+// acima fecha a tarefa; bloco ``` é código, não conta.
+function tarefasDoPlano(texto) {
+  const tarefas = [];
+  let atual = null;
+  let emCodigo = false;
+  for (const linha of texto.split(/\r?\n/)) {
+    if (/^\s*```/.test(linha)) { emCodigo = !emCodigo; continue; }
+    if (emCodigo) continue;
+    const titulo = linha.match(/^(#{1,6})\s+(.*)$/);
+    if (titulo) {
+      const nivel = titulo[1].length;
+      const t = titulo[2].replace(/[`*]/g, '').match(/^task\s+(\d+)\s*[:.–—-]?\s*(.*)$/i);
+      if (t) { atual = { numero: Number(t[1]), titulo: t[2].trim(), nivel, passos: 0, feitos: 0 }; tarefas.push(atual); }
+      else if (atual && nivel <= atual.nivel) atual = null;
+      continue;
+    }
+    const caixa = linha.match(/^- \[([ xX])\]/);
+    if (caixa && atual) { atual.passos++; if (caixa[1] !== ' ') atual.feitos++; }
+  }
+  const comPassos = tarefas.filter(t => t.passos);
+  if (!comPassos.length) return null;
+  const proxima = comPassos.find(t => t.feitos < t.passos);
+  return {
+    total: comPassos.length,
+    feitas: comPassos.filter(t => t.feitos === t.passos).length,
+    atual: proxima ? { numero: proxima.numero, titulo: proxima.titulo.slice(0, 80) } : null,
+  };
+}
+
+// Agentes (subagentes) vivos por sessão, pro painel mostrar "Task 11 · in
+// review" e os agentes de cada worktree. Puro; registrarEventoAgente grava
+// em _agentes.json. Fontes: PreToolUse da ferramenta Agent (descrição e
+// tipo), SubagentStart (agent_id + tipo, sem descrição), SubagentStop e Stop
+// (background_tasks: subagentes rodando, com descrição; id = agent_id).
+const PENDENTE_EXPIRA_MS = 2 * 60 * 1000;
+const AGENTE_FIM_GUARDA_MS = 10 * 60 * 1000;
+const AGENTE_MAX_MS = 2 * 60 * 60 * 1000;
+
+function aplicarEventoAgente(estado, data, agora) {
+  const sessoes = {};
+  for (const [id, s] of Object.entries((estado && estado.sessoes) || {})) {
+    sessoes[id] = { cwd: s.cwd || null, pendentes: [...(s.pendentes || [])], agentes: { ...(s.agentes || {}) } };
+  }
+  const evento = data && data.hook_event_name;
+  const sid = data && data.session_id;
+  if (evento && sid) {
+    const s = sessoes[sid] = sessoes[sid] || { cwd: null, pendentes: [], agentes: {} };
+    if (data.cwd) s.cwd = data.cwd;
+    const desc = v => String(v || '').slice(0, 160);
+    if (evento === 'PreToolUse' && data.tool_name === 'Agent' && data.tool_input) {
+      s.pendentes.push({ tipo: data.tool_input.subagent_type || 'general-purpose', descricao: desc(data.tool_input.description), ts: agora });
+    } else if (evento === 'SubagentStart' && data.agent_id) {
+      const i = s.pendentes.findIndex(p => p.tipo === data.agent_type);
+      const p = s.pendentes.splice(i < 0 ? 0 : i, 1)[0] || null;
+      s.agentes[data.agent_id] = { tipo: data.agent_type || (p && p.tipo) || '?', descricao: (p && p.descricao) || '', inicio: agora, fim: null };
+    } else if (evento === 'SubagentStop' || evento === 'Stop') {
+      const rodando = (data.background_tasks || []).filter(t => t && t.type === 'subagent' && t.status === 'running');
+      for (const t of rodando) {
+        const a = s.agentes[t.id];
+        s.agentes[t.id] = a
+          ? { ...a, descricao: a.descricao || desc(t.description) }
+          : { tipo: t.agent_type || '?', descricao: desc(t.description), inicio: agora, fim: null };
+      }
+      if (evento === 'Stop') {
+        const ids = new Set(rodando.map(t => t.id));
+        for (const [id, a] of Object.entries(s.agentes)) if (!a.fim && !ids.has(id)) s.agentes[id] = { ...a, fim: agora };
+      } else if (data.agent_id) {
+        const a = s.agentes[data.agent_id] || { tipo: data.agent_type || '?', descricao: '', inicio: agora };
+        s.agentes[data.agent_id] = { ...a, fim: agora };
+      }
+    }
+  }
+  for (const [id, s] of Object.entries(sessoes)) {
+    s.pendentes = s.pendentes.filter(p => agora - p.ts < PENDENTE_EXPIRA_MS);
+    for (const [aid, a] of Object.entries(s.agentes)) {
+      if ((a.fim && agora - a.fim > AGENTE_FIM_GUARDA_MS) || (!a.fim && agora - a.inicio > AGENTE_MAX_MS)) delete s.agentes[aid];
+    }
+    if (!s.pendentes.length && !Object.keys(s.agentes).length) delete sessoes[id];
+  }
+  return { sessoes };
+}
+
+function registrarEventoAgente(data) {
+  const lock = adquirirLock('_agentes');
+  try {
+    let estado = {};
+    try { estado = JSON.parse(fs.readFileSync(path.join(DIR, '_agentes.json'), 'utf8')); } catch (e) { /* 1ª vez */ }
+    escreverAtomico('_agentes', aplicarEventoAgente(estado, data, Date.now()));
+  } finally { liberarLock(lock); }
+}
+
+module.exports = { resolverProjeto, resolverProjetoAtivo, lerProjeto, atualizarProgresso, registrarAtividade, registrarHeartbeat, estadoDaSessao, resumoSessoes, progressoDoPlano, projetosExtrasDoPlano, registrarToque, viaBashNovo, aplicarEventoAgente, registrarEventoAgente };
