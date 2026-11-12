@@ -100,6 +100,32 @@ async function mostrarPadrao(extensionUri) {
   painelPadrao.webview.postMessage({ type: 'padrao', dados: resumoPadrao(semanal) });
 }
 
+// Programas (programa.js): grupo cuja raiz (checkout principal) tem
+// .symbiont/programme.json ganha o progresso somado em cada membro; o anel
+// usa o do projeto que ele escolher (foco vivo, senão o mais recente).
+let programaLib = null;
+try { programaLib = require('./lib/programa.js'); } catch (e) { /* rodando do repo sem prepare.js */ }
+function anexarProgramas(projetos) {
+  if (!programaLib) return projetos;
+  const porRaiz = new Map();
+  const doWorktree = w => projetos.find(p => p.projectPath && path.basename(p.projectPath).toLowerCase() === String(w).toLowerCase());
+  return projetos.map(p => {
+    const raiz = (p.grupo && p.grupo.raiz) || p.projectPath;
+    if (!raiz) return p;
+    if (!porRaiz.has(raiz)) {
+      const prog = programaLib.lerPrograma(raiz);
+      let r = null;
+      if (prog) {
+        r = programaLib.progressoPrograma(prog, raiz, progressoDoPlano, w => { const q = doWorktree(w); return !!(q && q.agentes && q.agentes.length); });
+        if (r.atual && r.atual.worktree) { const q = doWorktree(r.atual.worktree); r.atual.agentes = (q && q.agentes) || []; }
+      }
+      porRaiz.set(raiz, r);
+    }
+    const r = porRaiz.get(raiz);
+    return r ? { ...p, programa: r } : p;
+  });
+}
+
 let transicoes = null;
 try { ({ transicoes } = require('./lib/transicoes.js')); } catch (e) { /* rodando do repo sem prepare.js — sem notificações */ }
 
@@ -370,7 +396,7 @@ class SimbiontePainelProvider {
     };
     const enviar = () => {
       const atual = projetoAtual();
-      const projetos = marcarOcultos(agentesNoPainel(agruparProjetos(lerTodosProjetos(atual))));
+      const projetos = anexarProgramas(marcarOcultos(agentesNoPainel(agruparProjetos(lerTodosProjetos(atual)))));
       checarTransicoes(projetos);
       const sessao = sessaoAtual();
       const uso = usoAtual(sessao);

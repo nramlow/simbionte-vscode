@@ -673,6 +673,26 @@ function renderUso(uso, padrao) {
 // pode nunca mais acontecer na mesma sessão.
 const PROGRESSO_EXPIRA_MS = 15 * 60 * 1000;
 
+// Programa (vários planos somados, .symbiont/programme.json — programa.js no
+// lado da extensão): quando o projeto da janela tem um, o anel mostra o
+// progresso geral em vez do plano solto daquela pasta.
+function renderPrograma(g) {
+  const total = g.passos.total || 0;
+  const pct = total ? Math.round((g.passos.feitos / total) * 100) : 0;
+  segs.forEach((s, i) => s.classList.toggle('lit', i < Math.round((pct / 100) * SEGMENTS)));
+  document.getElementById('pct').textContent = pct + '%';
+  const sp = g.subprojetos;
+  const tudo = sp.feitos >= sp.total;
+  const a = g.atual;
+  // Com um plano rodando: "sub-project 3/8" (o que está em curso); sem plano
+  // aberto: quantos terminaram ("3/8 sub-projects").
+  const parte = a && !tudo ? `sub-project ${Math.min(sp.feitos + 1, sp.total)}/${sp.total}` : `${sp.feitos}/${sp.total} sub-projects`;
+  document.getElementById('steps').textContent = `${g.nome} · ${parte} · ${g.passos.feitos}/${total} steps`;
+  document.getElementById('reactorLabel').innerHTML = a && a.progresso.activeLabel
+    ? `building: <b>${a.worktree ? escapeHtml(a.worktree) + ' › ' : ''}${escapeHtml(rotuloComTarefa(a, a.progresso))}</b>`
+    : (tudo ? 'programme complete' : 'next sub-project not planned yet');
+}
+
 function renderReator(projetos, currentProject) {
   // O reator mostra o projeto em foco. Sem foco resolvido, cai no mais
   // recentemente tocado — senão o anel fica morto justamente quando há
@@ -686,6 +706,7 @@ function renderReator(projetos, currentProject) {
   const recente = [...projetos].sort((a, b) => (ultimaAtividade(b) || 0) - (ultimaAtividade(a) || 0))[0];
   const focoVivo = foco && (Date.now() - ultimaAtividade(foco)) < PROGRESSO_EXPIRA_MS;
   const alvo = focoVivo ? foco : (recente || foco);
+  if (alvo && alvo.programa) return renderPrograma(alvo.programa);
 
   const progress = alvo ? progressoEfetivo(alvo) : null;
 
