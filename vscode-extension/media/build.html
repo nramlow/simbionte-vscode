@@ -116,6 +116,16 @@
   /* ritmo da semana: verde no ritmo, âmbar perto do limite, vermelho estourando */
   .ritmo{text-align:center;font-size:var(--fs-xs);color:var(--teal);margin:calc(-1 * var(--sp-1)) 0 var(--sp-3);}
   .ritmo.alto{color:var(--amarelo);}
+  /* faixas de 24h do padrão de uso (Claude / você); hora atual contornada */
+  .faixas{cursor:pointer;margin:0 0 var(--sp-3);}
+  .faixa-linha{display:flex;align-items:center;gap:var(--sp-2);margin-bottom:3px;}
+  .faixa-rot{flex:none;width:40px;font-size:var(--fs-xs);color:var(--dim);text-align:right;}
+  .faixa{flex:1;display:grid;grid-template-columns:repeat(24,1fr);gap:1px;}
+  .fx{height:9px;border-radius:2px;background:var(--teal);}
+  .faixa.voce .fx{background:var(--amarelo);}
+  .fx.agora{outline:1px solid var(--text);outline-offset:1px;}
+  .faixa-resumo{font-size:var(--fs-xs);color:var(--dim);text-align:center;margin-top:4px;}
+  .faixas:hover .faixa-resumo{color:var(--teal);}
   .ritmo.critico{color:var(--vermelho);}
   .medidor.alto .seg.lit{fill:var(--amarelo);stroke:var(--amarelo);filter:drop-shadow(0 0 3px var(--amarelo));}
   .medidor.critico .seg.lit{fill:var(--vermelho);stroke:var(--vermelho);filter:drop-shadow(0 0 3px var(--vermelho));}
@@ -302,6 +312,11 @@
     </div>
   </div>
   <div class="ritmo" id="ritmo" hidden></div>
+  <div class="faixas" id="faixas" hidden title="Your usual hours: click for the full usage pattern" tabindex="0" role="button">
+    <div class="faixa-linha"><span class="faixa-rot">claude</span><div class="faixa" id="faixaClaude"></div></div>
+    <div class="faixa-linha"><span class="faixa-rot">you</span><div class="faixa voce" id="faixaVoce"></div></div>
+    <div class="faixa-resumo" id="faixaResumo"></div>
+  </div>
   </div>
 </div>
 <script>
@@ -591,20 +606,47 @@ function ritmoSemanal(s) {
 }
 const diaHora = ts => new Date(ts).toLocaleString('en-US', { weekday: 'short', hour: 'numeric', minute: '2-digit' }).replace(',', '');
 
-function renderRitmo(s) {
+// Previsão pelo padrão de uso (padrao.js, lado da extensão) quando existe;
+// senão a linha reta acima.
+function renderRitmo(s, previsaoPadrao) {
   const el = document.getElementById('ritmo');
-  const r = ritmoSemanal(s);
+  const p = s && previsaoPadrao;
+  const r = p ? (p.batida ? { estado: 'estoura', batida: p.batida } : { estado: 'ok', projecao: p.projecao }) : ritmoSemanal(s);
+  const fonte = p ? ' · from your usual hours' : '';
   el.hidden = !r;
   el.classList.toggle('alto', !!r && r.estado === 'ok' && r.projecao > 90);
   el.classList.toggle('critico', !!r && r.estado === 'estoura');
   el.textContent = !r ? ''
     : r.estado === 'cedo' ? 'Too early in the week to tell the pace'
-      : r.estado === 'ok' ? `On track · about ${r.projecao}% by reset`
-        : `Ahead of pace · limit around ${diaHora(r.batida)}`;
+      : r.estado === 'ok' ? `On track · about ${r.projecao}% by reset${fonte}`
+        : `Ahead of pace · limit around ${diaHora(r.batida)}${fonte}`;
 }
 
-function renderUso(uso) {
-  renderRitmo(uso && uso.semanal);
+// Faixas de 24h do padrão: Claude (uso) e você (mensagens), hora atual
+// marcada. Clique abre a visão completa.
+const horaCurta = h => `${h % 12 || 12} ${h < 12 ? 'AM' : 'PM'}`;
+function faixa(dia, campo, horaAtual) {
+  const max = Math.max(...dia.map(s => s[campo]));
+  return dia.map((s, h) => {
+    const v = max > 0 ? s[campo] / max : 0;
+    return `<div class="fx${h === horaAtual ? ' agora' : ''}" title="${horaCurta(h)}" style="opacity:${(0.1 + 0.9 * v).toFixed(2)}"></div>`;
+  }).join('');
+}
+function renderFaixas(padrao) {
+  const el = document.getElementById('faixas');
+  el.hidden = !padrao || !padrao.dias;
+  if (el.hidden) return;
+  document.getElementById('faixaClaude').innerHTML = faixa(padrao.dia, 'uso', padrao.horaAtual);
+  document.getElementById('faixaVoce').innerHTML = faixa(padrao.dia, 'msgs', padrao.horaAtual);
+  const j = padrao.janela;
+  document.getElementById('faixaResumo').textContent = !j ? 'learning your hours…'
+    : j.inicio === j.fim ? `active around the clock · peak ${horaCurta(j.pico)}`
+      : `usually active ${horaCurta(j.inicio)}–${horaCurta(j.fim)} · peak ${horaCurta(j.pico)}`;
+}
+
+function renderUso(uso, padrao) {
+  renderRitmo(uso && uso.semanal, padrao && padrao.previsao);
+  renderFaixas(padrao);
   const c = uso && uso.contexto;
   pintarMedidor('medContexto', c ? c.pct : null, c ? `${tokensCurto(c.tokens)} / ${tokensCurto(c.janela)}` : 'no session yet');
   const s = uso && uso.semanal;
@@ -762,13 +804,13 @@ function renderSessao(s) {
   linha.title = linha.textContent;
 }
 
-function render(projetos, currentProject, sessao, insights, uso) {
+function render(projetos, currentProject, sessao, insights, uso, padrao) {
   renderSessao(sessao);
   renderReator(projetos, currentProject);
   renderStatusList(projetos, currentProject);
   renderInsights(insights);
   renderHoje(projetos);
-  renderUso(uso);
+  renderUso(uso, padrao);
 }
 
 const vscode = acquireVsCodeApi();
@@ -790,6 +832,10 @@ function alternarHoje() {
 }
 aplicarHoje();
 document.getElementById('hojeCabeca').addEventListener('click', alternarHoje);
+// Faixas do padrão: clique (ou Enter) abre a visão completa.
+const abrirPadrao = () => vscode.postMessage({ type: 'abrirPadrao' });
+document.getElementById('faixas').addEventListener('click', abrirPadrao);
+document.getElementById('faixas').addEventListener('keydown', (ev) => { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); abrirPadrao(); } });
 document.getElementById('hojeCabeca').addEventListener('keydown', (ev) => {
   if (ev.key !== 'Enter' && ev.key !== ' ') return;
   ev.preventDefault();
@@ -833,7 +879,7 @@ window.addEventListener('message', (ev) => {
     const insights = ev.data.insights
       ? { ...ev.data.insights, naoCatalogados: ev.data.naoCatalogados || [] }
       : null;
-    render(ev.data.projetos || [], ev.data.currentProject, ev.data.sessao || null, insights, ev.data.uso);
+    render(ev.data.projetos || [], ev.data.currentProject, ev.data.sessao || null, insights, ev.data.uso, ev.data.padrao);
   }
 });
 </script>

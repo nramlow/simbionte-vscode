@@ -80,6 +80,25 @@ assert.ok(elementos.ritmo.classList.contains('critico'));
 ctx.renderUso({ contexto: null, semanal: null });
 assert.strictEqual(elementos.ritmo.hidden, true, 'sem dado semanal: some');
 
+// Padrão de uso: faixas de 24h (Claude / você) e previsão pelo padrão.
+const diaP = Array.from({ length: 24 }, (_, h) => ({ uso: h === 12 ? 50 : 10, msgs: h === 16 ? 3 : (h >= 8 || h < 6 ? 1 : 0) }));
+const padrao = { dia: diaP, janela: { inicio: 8, fim: 6, pico: 16 }, horaAtual: 16, semanas: 8, dias: 56, previsao: { projecao: 71, batida: null } };
+ctx.renderUso({ contexto: null, semanal: leitura(58, 104.9) }, padrao);
+assert.strictEqual(elementos.ritmo.textContent, 'On track · about 71% by reset · from your usual hours', 'previsão pelo padrão ganha da linha reta');
+assert.ok(!elementos.ritmo.classList.contains('alto'), '71%: sem âmbar');
+assert.strictEqual(elementos.faixas.hidden, false);
+assert.strictEqual((elementos.faixaClaude.innerHTML.match(/class="fx/g) || []).length, 24);
+assert.strictEqual((elementos.faixaVoce.innerHTML.match(/class="fx/g) || []).length, 24);
+assert.strictEqual((elementos.faixaVoce.innerHTML.match(/ agora/g) || []).length, 1, 'hora atual marcada');
+assert.ok(elementos.faixaClaude.innerHTML.includes('title="12 PM'), 'célula diz a hora');
+assert.strictEqual(elementos.faixaResumo.textContent, 'usually active 8 AM–6 AM · peak 4 PM');
+ctx.renderUso({ contexto: null, semanal: leitura(58, 104.9) }, { ...padrao, previsao: { projecao: 130, batida: new Date(2026, 10, 13, 15, 0).getTime() } });
+assert.strictEqual(elementos.ritmo.textContent, 'Ahead of pace · limit around Fri 3:00 PM · from your usual hours');
+ctx.renderUso({ contexto: null, semanal: leitura(30, 84) }, { ...padrao, previsao: null });
+assert.strictEqual(elementos.ritmo.textContent, 'On track · about 60% by reset', 'sem previsão pelo padrão: linha reta');
+ctx.renderUso({ contexto: null, semanal: leitura(30, 84) }, null);
+assert.strictEqual(elementos.faixas.hidden, true, 'sem padrão ainda: faixas somem');
+
 // Rodapé fixo: os medidores ficam visíveis com a lista rolando.
 assert.ok(/\.uso-rodape\{[^}]*position:sticky[^}]*bottom:0/.test(html), 'rodapé de uso grudado embaixo');
 assert.ok(html.indexOf('class="uso-rodape"') > html.indexOf('id="hojeList"'), 'rodapé é o último bloco');
