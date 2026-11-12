@@ -34,4 +34,51 @@ assert.deepStrictEqual(b['2026-11-11T14'], { uso: esperado14, msgs: 2 }, 'uso in
 assert.deepStrictEqual(b['2026-11-11T23'], { uso: 0, msgs: 1 }, 'ditado de voz do Claude TV conta; outra mensagem de sessão não');
 assert.deepStrictEqual(b['2026-11-12T00'], { uso: 0, msgs: 1 }, 'formato antigo sem origin: texto conta, tool_result e sidechain não');
 
-console.log('OK: padrão de uso (baldes por hora)');
+// ── Task 2: varredura incremental ──
+const { varrer } = require('../padrao.js');
+(async () => {
+  const raiz = fs.mkdtempSync(path.join(os.tmpdir(), 'simbionte-padrao-'));
+  try {
+    const proj = path.join(raiz, 'd--x');
+    fs.mkdirSync(path.join(proj, 'sess', 'subagents'), { recursive: true });
+    const arq = path.join(proj, 'sess.jsonl');
+    const sub = path.join(proj, 'sess', 'subagents', 'agent-1.jsonl');
+    const agora = new Date(2026, 10, 11, 20, 0).getTime();
+    const r1 = resp(local(2026, 11, 11, 15), { output_tokens: 10 });
+    fs.writeFileSync(arq, r1 + '\n' + user(local(2026, 11, 11, 15, 1), 'oi', { origin: { kind: 'human' } }) + '\n');
+    fs.writeFileSync(sub, resp(local(2026, 11, 11, 16), { output_tokens: 4 }, { isSidechain: true }) + '\n');
+    fs.writeFileSync(path.join(proj, 'notas.txt'), 'não é jsonl');
+
+    let e = await varrer(raiz, null, agora);
+    assert.deepStrictEqual(e.horas['2026-11-11T15'], { uso: 50, msgs: 1 });
+    assert.deepStrictEqual(e.horas['2026-11-11T16'], { uso: 20, msgs: 0 }, 'subagentes também');
+
+    // Linha nova + meia linha sendo escrita: conta a inteira, espera a metade.
+    const r2 = resp(local(2026, 11, 11, 15, 30), { output_tokens: 1 });
+    fs.appendFileSync(arq, r2 + '\n' + r2.slice(0, 20));
+    e = await varrer(raiz, e, agora);
+    assert.strictEqual(e.horas['2026-11-11T15'].uso, 55, 'linhas já lidas não contam de novo');
+    fs.appendFileSync(arq, r2.slice(20) + '\n');
+    e = await varrer(raiz, e, agora);
+    assert.strictEqual(e.horas['2026-11-11T15'].uso, 60, 'a meia linha conta quando termina');
+
+    // Arquivo que encolheu (reescrito): relido do zero, sem somar em dobro.
+    const antes = JSON.parse(JSON.stringify(e.horas));
+    fs.writeFileSync(sub, resp(local(2026, 11, 11, 17), { output_tokens: 2 }) + '\n');
+    e = await varrer(raiz, e, agora);
+    assert.strictEqual(e.horas['2026-11-11T17'].uso, 10);
+    assert.deepStrictEqual(e.horas['2026-11-11T15'], antes['2026-11-11T15']);
+
+    // Baldes com mais de 12 semanas saem.
+    e.arquivos[arq].baldes['2026-08-01T10'] = { uso: 5, msgs: 1 };
+    e.arquivos[path.join(proj, 'apagado.jsonl')] = { offset: 99, baldes: { '2026-11-10T09': { uso: 7, msgs: 0 } } };
+    e = await varrer(raiz, e, agora);
+    assert.ok(!e.horas['2026-08-01T10'], 'mais de 12 semanas: sai');
+    assert.deepStrictEqual(e.horas['2026-11-10T09'], { uso: 7, msgs: 0 }, 'transcript apagado pelo Claude Code: histórico fica');
+    assert.strictEqual(e.atualizadoEm, agora);
+
+    console.log('OK: padrão de uso (baldes por hora, varredura incremental)');
+  } finally {
+    fs.rmSync(raiz, { recursive: true, force: true });
+  }
+})().catch(err => { console.error(err); process.exit(1); });

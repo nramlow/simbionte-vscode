@@ -61,4 +61,58 @@ function lerLinhas(texto, baldes) {
   return baldes;
 }
 
-module.exports = { PESOS, chaveHora, lerLinhas };
+const DOZE_SEMANAS_MS = 12 * 7 * 24 * 3600000;
+
+async function listarJsonl(dir, saida) {
+  let entradas;
+  try { entradas = await fs.promises.readdir(dir, { withFileTypes: true }); } catch (e) { return saida; }
+  for (const e of entradas) {
+    const p = path.join(dir, e.name);
+    if (e.isDirectory()) await listarJsonl(p, saida);
+    else if (e.name.endsWith('.jsonl')) saida.push(p);
+  }
+  return saida;
+}
+
+// Varredura incremental de ~/.claude/projects. Por arquivo guarda até onde
+// leu (offset) e os baldes que ele gerou: arquivo que encolheu (reescrito)
+// é relido sem somar em dobro, e transcript que o Claude Code apagou
+// (cleanupPeriodDays) deixa o histórico. Só lê até a última quebra de linha
+// — a linha sendo escrita espera a próxima rodada. Assíncrona: roda no
+// processo da extensão, não pode travar o VS Code.
+async function varrer(raiz, estado, agora = Date.now()) {
+  const arquivos = (estado && estado.arquivos) || {};
+  for (const f of await listarJsonl(raiz, [])) {
+    let st;
+    try { st = await fs.promises.stat(f); } catch (e) { continue; }
+    let reg = arquivos[f] || { offset: 0, baldes: {} };
+    if (st.size < reg.offset) reg = { offset: 0, baldes: {} };
+    if (st.size === reg.offset) continue;
+    let fh;
+    try {
+      fh = await fs.promises.open(f, 'r');
+      const buf = Buffer.alloc(st.size - reg.offset);
+      await fh.read(buf, 0, buf.length, reg.offset);
+      const fim = buf.lastIndexOf(0x0a);
+      if (fim < 0) continue; // nem uma linha inteira ainda
+      lerLinhas(buf.subarray(0, fim + 1).toString('utf8'), reg.baldes);
+      reg.offset += fim + 1;
+      arquivos[f] = reg;
+    } catch (e) { /* arquivo sumiu/travado: tenta na próxima */ }
+    finally { if (fh) await fh.close().catch(() => {}); }
+  }
+  const limite = chaveHora(agora - DOZE_SEMANAS_MS);
+  const horas = {};
+  for (const [f, reg] of Object.entries(arquivos)) {
+    for (const k of Object.keys(reg.baldes)) {
+      if (k < limite) { delete reg.baldes[k]; continue; }
+      const h = horas[k] = horas[k] || { uso: 0, msgs: 0 };
+      h.uso += reg.baldes[k].uso;
+      h.msgs += reg.baldes[k].msgs;
+    }
+    if (!Object.keys(reg.baldes).length && !fs.existsSync(f)) delete arquivos[f];
+  }
+  return { arquivos, horas, atualizadoEm: agora };
+}
+
+module.exports = { PESOS, chaveHora, lerLinhas, varrer };
