@@ -41,6 +41,12 @@ sent anywhere.
   their row. An agent lands on the right worktree when its description
   follows `<worktree folder>: Task <n> <implement|review|fix> – <title>`;
   otherwise it shows on the folder its session runs in.
+- **Claude usage** — two small meters at the bottom: *context* (how full the
+  context window is for the session the panel follows, from its transcript)
+  and *weekly* (your weekly limit). The weekly number only comes from Claude
+  Code's status line, which terminal sessions run and VS Code sessions
+  don't, so it shows when it was last updated. The 5-hour and per-model
+  limits aren't available to extensions.
 
 ## Installation
 
@@ -68,8 +74,12 @@ Claude Code.
 
 Step 2 (and only step 2 — the extension never installs anything on its own):
 
-- copies 5 files to `~/.claude/`: `progress-hook.js`, `activity-hook.js`,
-  `estado-hook.js`, `agentes-hook.js` and `simbionte-store.js`;
+- copies 6 files to `~/.claude/`: `progress-hook.js`, `activity-hook.js`,
+  `estado-hook.js`, `agentes-hook.js`, `simbionte-statusline.js` and
+  `simbionte-store.js`;
+- sets Claude Code's status line to `simbionte-statusline.js` **only if you
+  have none** (it's the only source of the weekly limit); an existing status
+  line is never replaced, and the weekly meter then stays empty;
 - adds entries to `~/.claude/settings.json`, **without touching** the hooks
   already there:
 
@@ -90,7 +100,7 @@ Step 2 (and only step 2 — the extension never installs anything on its own):
 Running the command again is safe: it updates the files and only adds what's
 missing, without duplicating.
 
-After an extension update, Symbiont refreshes its own 5 files in
+After an extension update, Symbiont refreshes its own 6 files in
 `~/.claude/` when they differ from the new version, and tells you which ones
 it updated. It does this only if the hooks are already installed, and never
 changes `settings.json`; after **Remove** it leaves `~/.claude/` alone.
@@ -99,7 +109,7 @@ changes `settings.json`; after **Remove** it leaves `~/.claude/` alone.
 
 `Ctrl+Shift+P` → **Symbiont: Remove Claude Code hooks**. Removes only
 Symbiont's entries from `settings.json` (other tools' hooks stay) and deletes
-the 5 files. Then uninstall the extension and, if you like, delete
+the 6 files (and its status line, if it set one). Then uninstall the extension and, if you like, delete
 `~/.claude/simbionte/`. `settings.json.bak` stays in place in case you'd
 rather restore the file exactly as it was before installing.
 
