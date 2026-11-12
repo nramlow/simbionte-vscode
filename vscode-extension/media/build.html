@@ -97,6 +97,14 @@
 
   /* medidores de uso do Claude (rodapé): anéis pequenos no mesmo estilo do
      reator, lado a lado. Âmbar a partir de 80%, vermelho a partir de 95%. */
+  /* rodapé de uso grudado embaixo: lista longa rola por trás dele. Fundo
+     opaco + sombra pra cima pra não misturar com o card que passa por baixo;
+     margin-top:auto encosta no fim quando a lista é curta. */
+  .uso-rodape{position:sticky;bottom:0;z-index:2;margin:auto calc(-1 * var(--sp-3)) calc(-1 * var(--sp-3));
+    padding:0 var(--sp-3);background:var(--bg);box-shadow:0 -12px 18px -10px rgba(0,0,0,.75);}
+  .hoje-cabeca{cursor:pointer;}
+  .hoje-cabeca .grupo-seta{margin-left:auto;}
+  .hoje-cabeca:hover .grupo-seta{color:var(--teal);}
   .medidores{display:flex;justify-content:space-around;gap:var(--sp-3);padding:var(--sp-2) 0 var(--sp-3);}
   .medidor{display:flex;flex-direction:column;align-items:center;min-width:0;flex:1;}
   .mini{position:relative;width:min(24vw,64px);aspect-ratio:1;}
@@ -269,9 +277,12 @@
     <div class="divider"></div>
   </div>
   <div class="outros">
-    <div class="section-head"><span class="t" id="hojeTitle">today</span></div>
+    <div class="section-head hoje-cabeca" id="hojeCabeca" tabindex="0" role="button" aria-expanded="true">
+      <span class="t" id="hojeTitle">today</span><span class="grupo-seta" id="hojeSeta" aria-hidden="true">▾</span>
+    </div>
     <div id="hojeList"><div class="empty">no edits yet today</div></div>
   </div>
+  <div class="uso-rodape">
   <div class="divider"></div>
   <div class="section-head"><span class="t">claude usage</span></div>
   <div class="medidores">
@@ -285,6 +296,7 @@
       <div class="mini-nome">weekly</div>
       <div class="mini-sub" id="medSemanalSub"></div>
     </div>
+  </div>
   </div>
 </div>
 <script>
@@ -728,6 +740,26 @@ const vscode = acquireVsCodeApi();
 
 // Dobra por grupo, salva no estado do webview (sobrevive a reload).
 let dobrados = (vscode.getState() || {}).dobrados || {};
+
+// "today" dobrável (abre o espaço pros medidores do rodapé), lembrado também.
+let hojeDobrado = !!(vscode.getState() || {}).hojeDobrado;
+function aplicarHoje() {
+  document.getElementById('hojeList').hidden = hojeDobrado;
+  document.getElementById('hojeSeta').textContent = hojeDobrado ? '▸' : '▾';
+  document.getElementById('hojeCabeca').setAttribute('aria-expanded', String(!hojeDobrado));
+}
+function alternarHoje() {
+  hojeDobrado = !hojeDobrado;
+  vscode.setState({ ...(vscode.getState() || {}), hojeDobrado });
+  aplicarHoje();
+}
+aplicarHoje();
+document.getElementById('hojeCabeca').addEventListener('click', alternarHoje);
+document.getElementById('hojeCabeca').addEventListener('keydown', (ev) => {
+  if (ev.key !== 'Enter' && ev.key !== ' ') return;
+  ev.preventDefault();
+  alternarHoje();
+});
 function alternarGrupo(chave) {
   dobrados = { ...dobrados, [chave]: !dobrados[chave] };
   vscode.setState({ ...(vscode.getState() || {}), dobrados });

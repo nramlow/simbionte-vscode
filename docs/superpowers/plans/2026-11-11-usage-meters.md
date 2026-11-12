@@ -33,5 +33,5 @@
 
 - [x] **Step 1: README + CHANGELOG.**
 - [x] **Step 2: Package, install, push, CI green.**
-- [ ] **Step 3: Replace the probe** — Nik clicks **Update hooks**; `settings.json` statusLine points to `simbionte-statusline.js`; delete the probe script and `_statusline_probe/`.
-- [ ] **Step 4: Real check** — screenshot shows both meters.
+- [x] **Step 3: Replace the probe** — Nik clicks **Update hooks**; `settings.json` statusLine points to `simbionte-statusline.js`; delete the probe script and `_statusline_probe/`.
+- [x] **Step 4: Real check** — screenshot shows both meters.

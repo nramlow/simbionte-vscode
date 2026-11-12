@@ -8,6 +8,7 @@ const vm = require('vm');
 const html = fs.readFileSync(path.join(__dirname, '..', 'vscode-extension', 'media', 'build.html'), 'utf8');
 assert.ok(html.includes('id="medContexto"') && html.includes('id="medSemanal"'), 'os dois medidores existem no HTML');
 const elementos = {};
+let estadoWebview = null;
 const elemento = () => {
   const classes = new Set();
   return {
@@ -24,7 +25,7 @@ const ctx = {
     querySelector: () => null, querySelectorAll: () => [],
   },
   window: { addEventListener() {} },
-  acquireVsCodeApi: () => ({ getState: () => null, setState() {}, postMessage() {} }),
+  acquireVsCodeApi: () => ({ getState: () => estadoWebview, setState: s => { estadoWebview = s; }, postMessage() {} }),
   CSS: { escape: s => s },
   console, Date, Math, JSON, Map, Set,
 };
@@ -53,5 +54,18 @@ assert.strictEqual(elementos.medSemanalPct.textContent, '–');
 assert.strictEqual(elementos.medSemanalSub.textContent, 'run Claude in a terminal');
 ctx.renderUso(undefined);
 assert.strictEqual(elementos.medSemanalPct.textContent, '–', 'extensão antiga sem uso: não quebra');
+
+// Rodapé fixo: os medidores ficam visíveis com a lista rolando.
+assert.ok(/\.uso-rodape\{[^}]*position:sticky[^}]*bottom:0/.test(html), 'rodapé de uso grudado embaixo');
+assert.ok(html.indexOf('class="uso-rodape"') > html.indexOf('id="hojeList"'), 'rodapé é o último bloco');
+
+// "today" dobrável, lembrado no estado do webview.
+assert.strictEqual(elementos.hojeList.hidden, false, 'começa aberto');
+ctx.alternarHoje();
+assert.strictEqual(elementos.hojeList.hidden, true);
+assert.strictEqual(elementos.hojeSeta.textContent, '▸');
+assert.strictEqual(estadoWebview.hojeDobrado, true, 'salvo pro reload');
+ctx.alternarHoje();
+assert.strictEqual(elementos.hojeList.hidden, false);
 
 console.log('OK: medidores de uso (contexto e semanal) no rodapé');
