@@ -25,6 +25,6 @@
 ### Task 3: Ship
 
 - [x] **Step 1: README + CHANGELOG** (file format documented).
-- [ ] **Step 2: Package, install, push, CI green.**
-- [ ] **Step 3: Tell Governance Reconciliation the format** and that it can create the file.
+- [x] **Step 2: Package, install, push, CI green.**
+- [x] **Step 3: Tell Governance Reconciliation the format** and that it can create the file.
 - [ ] **Step 4: Real check** — screenshot of the ring once the file exists.
