@@ -27,4 +27,4 @@
 - [x] **Step 1: README + CHANGELOG** (file format documented).
 - [x] **Step 2: Package, install, push, CI green.**
 - [x] **Step 3: Tell Governance Reconciliation the format** and that it can create the file.
-- [ ] **Step 4: Real check** — screenshot of the ring once the file exists.
+- [x] **Step 4: Real check** — screenshot of the ring once the file exists.
