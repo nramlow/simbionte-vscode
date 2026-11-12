@@ -41,6 +41,13 @@ sent anywhere.
   their row. An agent lands on the right worktree when its description
   follows `<worktree folder>: Task <n> <implement|review|fix> – <title>`;
   otherwise it shows on the folder its session runs in.
+- **Pause / resume** — hover a row (or a repo's group header) and click ⏸ to
+  pause the Claude sessions working there before you reload VS Code: they get
+  a message (through Claude Code's session inbox) to let running work finish
+  — agents, test runs, commits — start nothing new, and stop; while paused,
+  Symbiont's hooks refuse new agents and background commands. The row shows
+  *pausing…* and then *paused · safe to reload*. After the reload, ▶ tells
+  them to continue.
 - **Programmes** — when one piece of work spans several plans (one per
   sub-project, each in its own worktree), list them in
   `.symbiont/programme.json` in the main checkout and the top ring shows the
