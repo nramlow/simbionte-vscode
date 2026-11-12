@@ -341,6 +341,8 @@ function registrarHeartbeat(evento, data) {
     if (evento && data && data.session_id) {
       const reg = { evento, ts: agora };
       if (data.notification_type) reg.tipo = data.notification_type;
+      // transcript da sessão: o medidor de contexto lê o uso da última resposta.
+      if (data.transcript_path) reg.transcript = String(data.transcript_path);
       if (evento === 'PreToolUse' && data.tool_input && data.tool_input.command) {
         reg.comando = String(data.tool_input.command).slice(0, 120);
       }
@@ -488,4 +490,51 @@ function registrarEventoAgente(data) {
   } finally { liberarLock(lock); }
 }
 
-module.exports = { resolverProjeto, resolverProjetoAtivo, lerProjeto, atualizarProgresso, registrarAtividade, registrarHeartbeat, estadoDaSessao, resumoSessoes, progressoDoPlano, projetosExtrasDoPlano, registrarToque, viaBashNovo, aplicarEventoAgente, registrarEventoAgente };
+// Uso do Claude pros medidores do painel. O limite semanal só chega pelo
+// statusLine (que só sessão de terminal chama); o tamanho da janela de
+// contexto também — o transcript diz o modelo mas não se é a versão 1M.
+// Puro; registrarUso grava em _uso.json.
+function aplicarUso(estado, data, agora) {
+  const e = { semanal: (estado && estado.semanal) || null, janelas: { ...((estado && estado.janelas) || {}) } };
+  const s = data && data.rate_limits && data.rate_limits.seven_day;
+  if (s && typeof s.used_percentage === 'number') {
+    e.semanal = { pct: s.used_percentage, resetsAt: (s.resets_at || 0) * 1000, ts: agora };
+  }
+  const id = data && data.model && data.model.id;
+  const tam = data && data.context_window && data.context_window.context_window_size;
+  if (id && tam) e.janelas[String(id).replace(/\[.*\]$/, '')] = tam;
+  return e;
+}
+
+function registrarUso(data) {
+  const lock = adquirirLock('_uso');
+  try {
+    let estado = {};
+    try { estado = JSON.parse(fs.readFileSync(path.join(DIR, '_uso.json'), 'utf8')); } catch (e) { /* 1ª vez */ }
+    escreverAtomico('_uso', aplicarUso(estado, data, Date.now()));
+  } finally { liberarLock(lock); }
+}
+
+// Contexto em uso = entrada da última resposta da thread principal (input +
+// cache criado + cache lido — a mesma soma do total_input_tokens do
+// statusLine). Lê de trás pra frente; a 1ª linha de um "tail" pode vir
+// cortada, sidechain é subagente, <synthetic> é mensagem local sem uso.
+function contextoDoTranscript(texto) {
+  const linhas = String(texto || '').split(/\r?\n/);
+  for (let i = linhas.length - 1; i >= 0; i--) {
+    if (!linhas[i].includes('"usage"')) continue;
+    let j;
+    try { j = JSON.parse(linhas[i]); } catch (e) { continue; }
+    const m = j && j.message;
+    if (!j || j.type !== 'assistant' || j.isSidechain || !m || !m.usage || m.model === '<synthetic>') continue;
+    const u = m.usage;
+    return {
+      tokens: (u.input_tokens || 0) + (u.cache_creation_input_tokens || 0) + (u.cache_read_input_tokens || 0),
+      modelo: m.model || null,
+      ts: Date.parse(j.timestamp) || null,
+    };
+  }
+  return null;
+}
+
+module.exports = { resolverProjeto, resolverProjetoAtivo, lerProjeto, atualizarProgresso, registrarAtividade, registrarHeartbeat, estadoDaSessao, resumoSessoes, progressoDoPlano, projetosExtrasDoPlano, registrarToque, viaBashNovo, aplicarEventoAgente, registrarEventoAgente , aplicarUso, registrarUso, contextoDoTranscript };
