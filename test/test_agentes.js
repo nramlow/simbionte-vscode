@@ -67,6 +67,11 @@ const { lerConvencao, agentesAtivos, anexarAgentes } = require('../agentes.js');
 assert.deepStrictEqual(lerConvencao(DESC_I), { worktree: 'governance-shell', tarefa: 12, papel: 'implement', titulo: 'customer storage URL' });
 assert.deepStrictEqual(lerConvencao('policy-model-1: Task 7 Review'), { worktree: 'policy-model-1', tarefa: 7, papel: 'review', titulo: '' });
 assert.strictEqual(lerConvencao('Shell Task 11: access in URL'), null, 'fora da convenção');
+// "<worktree>: …" sem Task/papel (achado 2026-11-12: "governance-pages-plan:
+// plan review – sub-project 3" caía na pasta da sessão): acha a linha mesmo
+// assim, sem tarefa nem papel.
+assert.deepStrictEqual(lerConvencao('governance-pages-plan: plan review – sub-project 3'), { worktree: 'governance-pages-plan', tarefa: null, papel: null, titulo: 'plan review – sub-project 3' });
+assert.strictEqual(lerConvencao('Write plan: shell and tables'), null, 'frase comum com dois-pontos não é worktree (tem espaço antes)');
 
 const CI = path.join(home, 'CI');
 const estado = { sessoes: { s1: { cwd: CI, pendentes: [], agentes: {

@@ -5,9 +5,16 @@
 const path = require('path');
 
 const CONVENCAO = /^\s*([\w.-]+)\s*:\s*Task\s+(\d+)\s+(implement|review|fix)\b\s*(?:[–—-]\s*(.*))?$/i;
+// Forma solta "<worktree>: <qualquer coisa>" (sem espaço antes do ":"): só
+// pra achar a linha — achado 2026-11-12, "governance-pages-plan: plan review
+// – sub-project 3" caía na pasta da sessão.
+const SO_WORKTREE = /^\s*([\w.-]+):\s*(.+)$/;
 function lerConvencao(descricao) {
-  const m = String(descricao || '').match(CONVENCAO);
-  return m ? { worktree: m[1], tarefa: Number(m[2]), papel: m[3].toLowerCase(), titulo: (m[4] || '').trim() } : null;
+  const d = String(descricao || '');
+  const m = d.match(CONVENCAO);
+  if (m) return { worktree: m[1], tarefa: Number(m[2]), papel: m[3].toLowerCase(), titulo: (m[4] || '').trim() };
+  const s = d.match(SO_WORKTREE);
+  return s ? { worktree: s[1], tarefa: null, papel: null, titulo: s[2].trim() } : null;
 }
 
 function agentesAtivos(estado, agora) {

@@ -92,4 +92,23 @@ assert.ok(elementos.statusList.innerHTML.includes('status-dot verde'), 'atividad
 ctx.renderStatusList([membro('a', { lastTouch: agora - 60 * 60000 }), membro('b', { lastTouch: agora - 90 * 60000, agentes: [AGS[0]] })], null);
 assert.ok(/grupo-cabeca[^]*?status-dot amarelo/.test(elementos.statusList.innerHTML), 'cabeça do grupo: algum membro com agente vivo deixa amarelo');
 
+// Plano com nada marcado e nenhum agente numa tarefa dele: "not started", não
+// "building" (achado 2026-11-12: governance-pages-plan, plano recém-escrito
+// em revisão, aparecia "building: Task 1/19").
+const zero = { ...prog, percent: 0, completed: 0, activeLabel: 'Task 1 › Step 1: Write the failing test', tarefas: { total: 19, feitas: 0, atual: { numero: 1, titulo: 'x', passos: 7, feitos: 0 } } };
+ctx.renderStatusList([{ ...p, agentes: [], progress: zero }], null);
+assert.ok(elementos.statusList.innerHTML.includes('not started: Task 1/19 › Step 1/7: Write the failing test'));
+const revisor = { id: 'r', tipo: 'deep-reviewer', descricao: 'governance-pages-plan: plan review', inicio: agora, convencao: { worktree: 'governance-pages-plan', tarefa: null, papel: null, titulo: 'plan review' } };
+ctx.renderStatusList([{ ...p, agentes: [revisor], progress: zero }], null);
+assert.ok(elementos.statusList.innerHTML.includes('not started: Task 1/19'), 'revisão do plano não é implementar');
+const impl1 = { ...AGS[1], convencao: { worktree: 'governance-shell', tarefa: 1, papel: 'implement', titulo: '' } };
+ctx.renderStatusList([{ ...p, agentes: [impl1], progress: zero }], null);
+assert.ok(elementos.statusList.innerHTML.includes('building: Task 1/19 · implementing'), 'agente na Task 1: building');
+
+// Agente na forma solta: texto como veio, nunca "Task null null".
+ctx.renderStatusList([{ ...p, agentes: [{ id: 'z', tipo: 'deep-reviewer', descricao: 'governance-pages-plan: plan review – sub-project 3', inicio: agora,
+  convencao: { worktree: 'governance-pages-plan', tarefa: null, papel: null, titulo: 'plan review – sub-project 3' } }] }], null);
+assert.ok(elementos.statusList.innerHTML.includes('deep-reviewer</span> plan review – sub-project 3'));
+assert.ok(!elementos.statusList.innerHTML.includes('Task null'));
+
 console.log('OK: painel mostra Task N/total com estado e os agentes vivos');

@@ -6,7 +6,7 @@
 // ter editado um plano via Bash/script em vez de Edit/Write — esta trava
 // cobre esse caso (busca o caminho de um plano no texto do comando Bash).
 const path = require('path');
-const { resolverProjeto, resolverProjetoAtivo, atualizarProgresso, registrarAtividade, registrarHeartbeat, progressoDoPlano, projetosExtrasDoPlano, registrarToque, comandoEscrevePlano } = require('./simbionte-store');
+const { resolverProjeto, resolverProjetoAtivo, atualizarProgresso, registrarAtividade, registrarHeartbeat, progressoDoPlano, projetosExtrasDoPlano, registrarToque, comandoEscrevePlano, copiaMaisNovaDoPlano } = require('./simbionte-store');
 
 function extrairPlanoDoComandoBash(comando) {
   if (!comando) return null;
@@ -21,7 +21,11 @@ process.stdin.on('end', () => {
     const data = JSON.parse(input);
     registrarHeartbeat('PostToolUse', data);
     const fileDireto = data.tool_input?.file_path;
-    const filePlano = fileDireto || extrairPlanoDoComandoBash(data.tool_input?.command);
+    // Plano citado num comando: caminho relativo resolve pela pasta da sessão,
+    // e se o trabalho dele está num worktree (cópia mais nova), vale a do
+    // worktree — achado 2026-11-12, main checkout com 0/105 da cópia velha.
+    const citado = !fileDireto && extrairPlanoDoComandoBash(data.tool_input?.command);
+    const filePlano = fileDireto || (citado && copiaMaisNovaDoPlano(path.resolve(data.cwd || process.cwd(), citado)));
 
     // Bash genérico (docker, script de verificação, etc.) não tem
     // file_path nem referencia um plano — antes disso era "return" direto

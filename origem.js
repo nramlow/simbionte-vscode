@@ -115,4 +115,15 @@ function soPastasExistentes(projetos, existe = pastaViva) {
   return projetos.filter(p => !p.projectPath || existe(p.projectPath));
 }
 
-module.exports = { normalizarUrl, origemDoProjeto, agruparProjetos, soPastasExistentes };
+// Atividade de arquivo fora da pasta do projeto (gravada antes de o hook
+// filtrar isso — memória de sessão em ~/.claude, achado 2026-11-12) não
+// aparece na linha. Comparação por texto normalizado (barra, caixa).
+const normTexto = s => String(s || '').replace(/\\/g, '/').replace(/\/+$/, '').toLowerCase();
+function soAtividadeDaPasta(p) {
+  if (!p || !p.projectPath || !Array.isArray(p.activity)) return p;
+  const pasta = normTexto(p.projectPath);
+  const dentro = a => { const c = normTexto(a && a.path); return !c || c === pasta || c.startsWith(pasta + '/'); };
+  return p.activity.every(dentro) ? p : { ...p, activity: p.activity.filter(dentro) };
+}
+
+module.exports = { normalizarUrl, origemDoProjeto, agruparProjetos, soPastasExistentes, soAtividadeDaPasta };

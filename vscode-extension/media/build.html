@@ -383,7 +383,8 @@ function linhasAgentes(p) {
   if (!ags.length) return '';
   return `<div class="agentes">${ags.map(a => {
     const c = a.convencao;
-    const texto = c ? `Task ${c.tarefa} ${c.papel}${c.titulo ? ' – ' + c.titulo : ''}` : (a.descricao || '');
+    // Forma solta ("<worktree>: plan review…", sem Task/papel): mostra o texto.
+    const texto = c && c.tarefa != null ? `Task ${c.tarefa} ${c.papel}${c.titulo ? ' – ' + c.titulo : ''}` : ((c && c.titulo) || a.descricao || '');
     return `<div class="agente"><span class="agente-tipo">${escapeHtml(a.tipo)}</span> ${escapeHtml(texto)} <span class="status-tempo">${tempoRelativo(a.inicio)}</span></div>`;
   }).join('')}</div>`;
 }
@@ -392,11 +393,18 @@ function linhasAgentes(p) {
 // linha, ou sinal (edição/comando/tick) nos últimos 15 min. Plano aberto numa
 // pasta parada é "idle · next: …", nunca "building".
 const estaVivo = p => temAgente(p) || (Date.now() - ultimaAtividade(p)) < PROGRESSO_EXPIRA_MS;
+// Plano com nada marcado e nenhum agente numa tarefa dele é "not started"
+// (plano recém-escrito, em revisão), não "building" — achado 2026-11-12.
+function estagio(p, progress) {
+  if (!estaVivo(p)) return 'idle · next';
+  const agenteEmTarefa = (p.agentes || []).some(a => a.convencao && a.convencao.tarefa != null);
+  return !progress.completed && !agenteEmTarefa ? 'not started' : 'building';
+}
 function infoLinha(p) {
   const progress = progressoEfetivo(p);
   const atividades = p.activity || [];
   const temAtividade = !!atividades.length;
-  if (progress && progress.activeLabel) return `${estaVivo(p) ? 'building' : 'idle · next'}: ${escapeHtml(rotuloComTarefa(p, progress))}`;
+  if (progress && progress.activeLabel) return `${estagio(p, progress)}: ${escapeHtml(rotuloComTarefa(p, progress))}`;
   if (progress && progress.total) return 'task complete';
   if (temAtividade) return `active: ${escapeHtml(atividades[0].file)}`;
   return estaVivo(p) ? 'working' : 'system idle';
@@ -779,7 +787,7 @@ function renderReator(projetos, currentProject) {
     : `${progress.completed || 0} / ${progress.total || 0} steps`;
   document.getElementById('reactorLabel').innerHTML = expirado
     ? (arquivo ? `active: <b>${escapeHtml(arquivo)}</b>` : 'system idle')
-    : (progress.activeLabel ? `${estaVivo(alvo) ? 'building' : 'idle · next'}: <b>${escapeHtml(rotuloComTarefa(alvo, progress))}</b>`
+    : (progress.activeLabel ? `${estagio(alvo, progress)}: <b>${escapeHtml(rotuloComTarefa(alvo, progress))}</b>`
       : (progress.total ? 'task complete' : 'system idle'));
 }
 

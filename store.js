@@ -31,6 +31,30 @@ function encontrarRaizGit(caminho) {
   }
 }
 
+// Plano citado num comando dentro do checkout principal, mas com cópia mais
+// nova num worktree (.worktrees/*/mesmo caminho): o trabalho está no
+// worktree, a do main é a versão velha do branch principal. Achado
+// 2026-11-12: "main checkout" mostrava 0/105 lendo a cópia do main enquanto
+// o worktree estava em 69/105. Citado dentro de um worktree, fica.
+function copiaMaisNovaDoPlano(arquivo) {
+  const abs = path.resolve(arquivo);
+  const raiz = encontrarRaizGit(abs);
+  if (!raiz || !fs.statSync(path.join(raiz, '.git')).isDirectory()) return abs; // worktree (.git é arquivo) ou fora do git
+  const rel = path.relative(raiz, abs);
+  let melhor = abs, mtime = -1;
+  try { mtime = fs.statSync(abs).mtimeMs; } catch (e) { /* não existe no main */ }
+  let worktrees = [];
+  try { worktrees = fs.readdirSync(path.join(raiz, '.worktrees'), { withFileTypes: true }).filter(d => d.isDirectory()); } catch (e) { return abs; }
+  for (const w of worktrees) {
+    const copia = path.join(raiz, '.worktrees', w.name, rel);
+    try {
+      const m = fs.statSync(copia).mtimeMs;
+      if (m > mtime) { mtime = m; melhor = copia; }
+    } catch (e) { /* esse worktree não tem o plano */ }
+  }
+  return melhor;
+}
+
 // Monorepo (ex: meu-monorepo com dezenas de addons): a raiz git sozinha
 // rotula tudo com o mesmo nome do repo, escondendo em qual sub-projeto o
 // trabalho realmente está. Se existir um marcador de sub-pacote (manifest)
@@ -634,4 +658,4 @@ function contextoDoTranscript(texto) {
   return null;
 }
 
-module.exports = { resolverProjeto, resolverProjetoAtivo, lerProjeto, atualizarProgresso, registrarAtividade, registrarHeartbeat, lerPausa, pausar, retomar, bloqueioPausa, estadoDaSessao, resumoSessoes, sessoesDaPasta, progressoDoPlano, projetosExtrasDoPlano, registrarToque, viaBashNovo, comandoEscrevePlano, aplicarEventoAgente, registrarEventoAgente , aplicarUso, registrarUso, contextoDoTranscript };
+module.exports = { copiaMaisNovaDoPlano, resolverProjeto, resolverProjetoAtivo, lerProjeto, atualizarProgresso, registrarAtividade, registrarHeartbeat, lerPausa, pausar, retomar, bloqueioPausa, estadoDaSessao, resumoSessoes, sessoesDaPasta, progressoDoPlano, projetosExtrasDoPlano, registrarToque, viaBashNovo, comandoEscrevePlano, aplicarEventoAgente, registrarEventoAgente , aplicarUso, registrarUso, contextoDoTranscript };

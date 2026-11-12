@@ -36,6 +36,27 @@ try {
   // main checkout mostrava "building" num plano que ninguém tocava).
   assert.strictEqual(p.plano, path.resolve(arquivo));
 
+  // Plano citado no checkout principal, com cópia mais nova num worktree
+  // (achado 2026-11-12: "main checkout" mostrava 0/105 lendo a cópia velha do
+  // main, enquanto o trabalho estava no worktree): vale a cópia do worktree.
+  const { copiaMaisNovaDoPlano } = require('../store.js');
+  const mainRepo = path.join(tmpRoot, 'repo');
+  const rel = path.join('docs', 'superpowers', 'plans', 'part2.md');
+  fs.mkdirSync(path.join(mainRepo, '.git'), { recursive: true });
+  const wt = path.join(mainRepo, '.worktrees', 'policy-model-2');
+  fs.mkdirSync(path.join(wt, 'docs', 'superpowers', 'plans'), { recursive: true });
+  fs.writeFileSync(path.join(wt, '.git'), 'gitdir: x');
+  fs.mkdirSync(path.join(mainRepo, 'docs', 'superpowers', 'plans'), { recursive: true });
+  fs.writeFileSync(path.join(mainRepo, rel), '- [ ] a\n');
+  fs.writeFileSync(path.join(wt, rel), '- [x] a\n');
+  const T0 = Date.now() / 1000;
+  fs.utimesSync(path.join(mainRepo, rel), T0 - 3600, T0 - 3600);
+  assert.strictEqual(copiaMaisNovaDoPlano(path.join(mainRepo, rel)), path.join(wt, rel), 'worktree mais novo ganha');
+  fs.utimesSync(path.join(wt, rel), T0 - 7200, T0 - 7200);
+  assert.strictEqual(copiaMaisNovaDoPlano(path.join(mainRepo, rel)), path.join(mainRepo, rel), 'main mais novo (já mergeado): fica no main');
+  assert.strictEqual(copiaMaisNovaDoPlano(path.join(wt, rel)), path.join(wt, rel), 'citado dentro do worktree: fica');
+  assert.strictEqual(copiaMaisNovaDoPlano(arquivo), arquivo, 'repo sem worktrees: fica');
+
   // fora do padrão docs/superpowers/plans -> ignora
   const outro = path.join(tmpRoot, 'nota.md');
   fs.writeFileSync(outro, '- [x] x\n');

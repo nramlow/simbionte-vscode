@@ -21,6 +21,7 @@ const { ARQUIVOS, hooksFaltando, adicionarHooks, removerHooks, arquivosDesatuali
 // painel reenvia a lista a cada 5s.
 let agruparProjetos = projetos => projetos;
 let marcarOcultos = projetos => projetos;
+let limparAtividade = projetos => projetos;
 try {
   const origem = require('./lib/origem.js');
   const cache = new Map();
@@ -31,6 +32,8 @@ try {
   agruparProjetos = projetos => origem.agruparProjetos(projetos, origemMemo);
   // Pasta apagada (worktree removido): a linha some do painel, mas o projeto
   // segue na lista marcado — as edições de hoje continuam contando.
+  // Atividade fora da pasta (memória de sessão etc., gravada antes do filtro do hook): fora.
+  limparAtividade = projetos => projetos.map(origem.soAtividadeDaPasta);
   marcarOcultos = projetos => { const vivos = new Set(origem.soPastasExistentes(projetos)); return projetos.map(p => (vivos.has(p) ? p : { ...p, oculto: true })); };
 } catch (e) { /* rodando do repo sem prepare.js — cards sem grupo, como antes */ }
 
@@ -460,7 +463,7 @@ class SimbiontePainelProvider {
     };
     const enviar = () => {
       const atual = projetoAtual();
-      const projetos = anexarPausas(anexarProgramas(marcarOcultos(agentesNoPainel(agruparProjetos(lerTodosProjetos(atual))))));
+      const projetos = anexarPausas(anexarProgramas(marcarOcultos(agentesNoPainel(agruparProjetos(limparAtividade(lerTodosProjetos(atual)))))));
       ultimosProjetos = projetos;
       checarTransicoes(projetos);
       const sessao = sessaoAtual(vscode.workspace.workspaceFolders?.[0]?.uri.fsPath);

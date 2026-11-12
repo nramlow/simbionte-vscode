@@ -93,6 +93,16 @@ try {
   const vis2 = soPastasExistentes([proj('Main-Repo', main), proj('feat-a', feat), proj('ui', ui), proj('docs-testing', vazio)]);
   assert.deepStrictEqual(vis2.map(p => p.projectId), ['Main-Repo', 'feat-a', 'ui'], 'pasta de worktree sem .git: some');
 
+  // Atividade gravada antes da correção, de arquivo fora da pasta (memória de
+  // outra sessão em ~/.claude): o painel ignora.
+  const { soAtividadeDaPasta } = require('../origem.js');
+  const comMemoria = { projectId: 'ui', projectPath: 'D:\\CI\\.worktrees\\gs\\ui', activity: [
+    { file: 'governance-policy-assignment.md', path: 'C:\\Users\\n\\.claude\\projects\\x\\memory\\governance-policy-assignment.md', ts: 2 },
+    { file: 'a.tsx', path: 'd:/ci/.worktrees/gs/ui/src/a.tsx', ts: 1 },
+  ] };
+  assert.deepStrictEqual(soAtividadeDaPasta(comMemoria).activity.map(a => a.file), ['a.tsx'], 'fora da pasta: some (caixa/barra não importam)');
+  assert.strictEqual(soAtividadeDaPasta({ projectId: 'x', activity: [] }).activity.length, 0);
+
   console.log('OK: origem do projeto (worktree, sub-pasta, clone ssh, sem origin, fora do git)');
 } finally {
   fs.rmSync(tmp, { recursive: true, force: true });
