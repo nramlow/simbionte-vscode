@@ -13,7 +13,7 @@ let progressoDoPlano = () => null, resumoSessoes = () => null;
 try {
   ({ progressoDoPlano, resumoSessoes } = require('./lib/store.js'));
 } catch (e) { /* rodando do repo sem prepare.js — cai pro cache do hook */ }
-const { ARQUIVOS, hooksFaltando, adicionarHooks, removerHooks, arquivosDesatualizados } = require('./lib/hooks-settings.js');
+const { ARQUIVOS, hooksFaltando, adicionarHooks, removerHooks, arquivosDesatualizados, statusLineFaltando } = require('./lib/hooks-settings.js');
 
 // Agrupa os cards por repo de origem (worktrees, sub-pastas, outro clone).
 // Cache por caminho: a origem de uma pasta não muda durante a sessão, e o
@@ -89,16 +89,21 @@ async function instalarHooks(extensionUri) {
   }
   const faltando = hooksFaltando(settings);
   const eventos = [...new Set(faltando.map(h => h.evento))].join(', ');
+  const semStatusLine = statusLineFaltando(settings);
+  const mudancas = [
+    faltando.length ? `add ${faltando.length} hooks to settings.json (${eventos})` : '',
+    semStatusLine ? 'set its status line (for the weekly usage meter)' : '',
+  ].filter(Boolean).join(' and ');
   const ok = await vscode.window.showWarningMessage(
     `Symbiont will copy ${ARQUIVOS.length} files to ${CLAUDE_DIR}`
-    + (faltando.length ? ` and add ${faltando.length} hooks to settings.json (${eventos}). The original is backed up to settings.json.bak.` : '.'),
+    + (mudancas ? ` and ${mudancas}. The original settings.json is backed up to settings.json.bak.` : '.'),
     { modal: true }, 'Install');
   if (ok !== 'Install') return;
 
   fs.mkdirSync(CLAUDE_DIR, { recursive: true });
   for (const f of ARQUIVOS) fs.copyFileSync(origemEmpacotada(extensionUri, f), path.join(CLAUDE_DIR, f));
 
-  if (faltando.length) {
+  if (faltando.length || semStatusLine) {
     // .bak só na 1ª vez: guarda o settings de ANTES do Simbionte. Sobrescrever
     // a cada instalação trocaria o original por uma cópia já com os hooks.
     const bak = SETTINGS_PATH + '.bak';
@@ -418,11 +423,13 @@ function activate(context) {
     vscode.window.showInformationMessage(`Symbiont: updated ${trocados.join(', ')} in ${CLAUDE_DIR} to match this version.`);
   }
   const faltando = settings ? hooksFaltando(settings) : [];
-  if (faltando.length) {
-    const nenhum = faltando.length === hooksFaltando({}).length;
+  // statusLine livre só conta pra quem já instalou: o aviso de "não
+  // instalado" já cobre quem não tem hook nenhum.
+  const nenhum = faltando.length === hooksFaltando({}).length;
+  if (faltando.length || (settings && !nenhum && statusLineFaltando(settings))) {
     vscode.window.showInformationMessage(
       nenhum ? 'Symbiont: Claude Code hooks are not installed yet.'
-        : 'Symbiont: new hooks are available (agent view, session state) — update to get them.',
+        : 'Symbiont: new hooks are available (usage meters, agent view) — update to get them.',
       nenhum ? 'Install now' : 'Update hooks')
       .then(escolha => { if (escolha) instalarHooks(context.extensionUri); });
   }

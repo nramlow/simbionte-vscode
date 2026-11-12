@@ -19,8 +19,18 @@ const HOOKS = [
   { evento: 'SubagentStop', file: 'agentes-hook.js' },
   { evento: 'Stop', file: 'agentes-hook.js' },
 ];
-// Arquivos que o Simbionte copia pra ~/.claude (hooks + store).
-const ARQUIVOS = [...new Set(HOOKS.map(h => h.file)), 'simbionte-store.js'];
+// statusLine: única fonte do limite semanal pros medidores de uso. É um só
+// por usuário — só ocupamos se estiver vazio (ou se for a sonda temporária
+// de 2026-11-11), nunca trocamos o de outra pessoa.
+const STATUSLINE = 'simbionte-statusline.js';
+// Arquivos que o Simbionte copia pra ~/.claude (hooks + statusLine + store).
+const ARQUIVOS = [...new Set(HOOKS.map(h => h.file)), STATUSLINE, 'simbionte-store.js'];
+
+const comandoStatusLine = s => String((s && s.statusLine && s.statusLine.command) || '');
+function statusLineFaltando(settings) {
+  const c = comandoStatusLine(settings);
+  return !c || c.includes('simbionte-statusline-probe.js');
+}
 
 // Por evento + arquivo, ignorando o matcher: quem instalou à mão com um
 // matcher diferente (ex. "Edit|Write|Bash|MultiEdit") não ganha duplicata.
@@ -41,6 +51,9 @@ function adicionarHooks(settings, claudeDir) {
     if (h.matcher) entrada.matcher = h.matcher;
     (settings.hooks[h.evento] = settings.hooks[h.evento] || []).push(entrada);
   }
+  if (statusLineFaltando(settings)) {
+    settings.statusLine = { type: 'command', command: `node "${path.join(claudeDir, STATUSLINE)}"` };
+  }
   return settings;
 }
 
@@ -48,6 +61,7 @@ function adicionarHooks(settings, claudeDir) {
 // Entrada que fica sem hook some; evento que fica vazio some. O resto
 // (hooks de outras ferramentas) fica exatamente como estava.
 function removerHooks(settings) {
+  if (settings && comandoStatusLine(settings).includes(STATUSLINE)) delete settings.statusLine;
   if (!settings || !settings.hooks) return settings;
   const nosso = x => ARQUIVOS.some(f => String(x.command || '').includes(f));
   for (const evento of Object.keys(settings.hooks)) {
@@ -71,4 +85,4 @@ function arquivosDesatualizados(settings, empacotado, instalado) {
   return ARQUIVOS.filter(f => empacotado[f] != null && empacotado[f] !== instalado[f]);
 }
 
-module.exports = { HOOKS, ARQUIVOS, hooksFaltando, adicionarHooks, removerHooks, arquivosDesatualizados };
+module.exports = { HOOKS, ARQUIVOS, hooksFaltando, adicionarHooks, removerHooks, arquivosDesatualizados, statusLineFaltando };

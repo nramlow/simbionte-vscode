@@ -61,5 +61,24 @@ assert.strictEqual(uso.semanal.pct, 58);
 assert.strictEqual(status(JSON.stringify({ model: { id: 'x' } })), 'ctx – · 7d –', 'sem números: traço');
 assert.strictEqual(status('{não é json'), ' ', 'payload inválido: linha vazia, nunca erro');
 
+// Instalar/remover o statusLine: é um só por usuário, então só ocupa vazio
+// (ou a sonda temporária de 2026-11-11) e só remove o nosso.
+const { ARQUIVOS, adicionarHooks, removerHooks, statusLineFaltando } = require('../hooks-settings.js');
+const DIR_C = '/home/x/.claude';
+assert.ok(ARQUIVOS.includes('simbionte-statusline.js'), 'script copiado/atualizado/apagado junto com os hooks');
+const vazio = adicionarHooks({}, DIR_C);
+assert.strictEqual(vazio.statusLine.type, 'command');
+assert.ok(vazio.statusLine.command.includes('simbionte-statusline.js'));
+assert.strictEqual(statusLineFaltando(vazio), false);
+assert.strictEqual(statusLineFaltando({}), true);
+const sonda = { statusLine: { type: 'command', command: 'node "C:/Users/n/.claude/simbionte-statusline-probe.js"' } };
+assert.strictEqual(statusLineFaltando(sonda), true, 'a sonda é substituída');
+assert.ok(adicionarHooks(sonda, DIR_C).statusLine.command.includes('simbionte-statusline.js'));
+const alheio = { statusLine: { type: 'command', command: 'bash ~/my-status.sh' } };
+assert.strictEqual(statusLineFaltando(alheio), false, 'statusLine de outra pessoa: não conta como faltando');
+assert.strictEqual(adicionarHooks(JSON.parse(JSON.stringify(alheio)), DIR_C).statusLine.command, 'bash ~/my-status.sh', 'nunca troca o de outra pessoa');
+assert.ok(!('statusLine' in removerHooks(adicionarHooks({}, DIR_C))), 'remover tira o nosso');
+assert.strictEqual(removerHooks(JSON.parse(JSON.stringify(alheio))).statusLine.command, 'bash ~/my-status.sh', 'remover não mexe no alheio');
+
 console.log('OK: uso do Claude (semanal do statusLine, contexto do transcript)');
 fs.rmSync(home, { recursive: true, force: true });
