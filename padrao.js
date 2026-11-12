@@ -115,4 +115,101 @@ async function varrer(raiz, estado, agora = Date.now()) {
   return { arquivos, horas, atualizadoEm: agora };
 }
 
-module.exports = { PESOS, chaveHora, lerLinhas, varrer };
+const H_MS = 3600000;
+const DIA_MS = 24 * H_MS;
+const vazio = () => ({ uso: 0, msgs: 0 });
+const deChave = k => new Date(+k.slice(0, 4), +k.slice(5, 7) - 1, +k.slice(8, 10), +k.slice(11, 13)).getTime();
+
+// Média por dia da semana × hora (semana[0..6][0..23], 0 = domingo) e por
+// hora do dia (dia[0..23]), sobre os dias INTEIROS antes de hoje — do
+// primeiro dia com dado (até 8 semanas atrás). Hora sem dado conta como 0:
+// é a média do que costuma acontecer naquela hora, não só quando há uso.
+function perfil(horas, agora) {
+  const hoje = new Date(agora); hoje.setHours(0, 0, 0, 0);
+  const fimJanela = hoje.getTime();
+  const chaves = Object.keys(horas).filter(k => deChave(k) < fimJanela).sort();
+  const semana = Array.from({ length: 7 }, () => Array.from({ length: 24 }, vazio));
+  const dia = Array.from({ length: 24 }, vazio);
+  if (!chaves.length) return { semanas: 0, dias: 0, semana, dia };
+  const primeiro = new Date(deChave(chaves[0])); primeiro.setHours(0, 0, 0, 0);
+  const inicio = Math.max(primeiro.getTime(), fimJanela - 56 * DIA_MS);
+  const vezes = Array(7).fill(0);
+  let dias = 0;
+  for (let d = new Date(inicio); d.getTime() < fimJanela; d.setDate(d.getDate() + 1)) { vezes[d.getDay()]++; dias++; }
+  for (const k of chaves) {
+    const t = deChave(k);
+    if (t < inicio) continue;
+    const d = new Date(t);
+    const s = semana[d.getDay()][d.getHours()];
+    s.uso += horas[k].uso; s.msgs += horas[k].msgs;
+    dia[d.getHours()].uso += horas[k].uso; dia[d.getHours()].msgs += horas[k].msgs;
+  }
+  semana.forEach((horasDoDia, dow) => horasDoDia.forEach(s => {
+    if (vezes[dow]) { s.uso /= vezes[dow]; s.msgs /= vezes[dow]; }
+  }));
+  dia.forEach(s => { s.uso /= dias; s.msgs /= dias; });
+  return { semanas: Math.floor(dias / 7), dias, semana, dia };
+}
+
+// Horas em que o Nik costuma estar ativo: horas com mensagens ≥ 25% da
+// hora de pico; pausa de 1h entre horas ativas é emendada (jantar
+// não parte o dia em dois — achado nos dados reais, 2026-11-11); fica a
+// maior sequência circular. fim é exclusivo (21–3 = das 21h até as 3h);
+// pico = hora com mais mensagens dentro da janela.
+function janelaAtiva(dia) {
+  const max = Math.max(...dia.map(s => s.msgs));
+  if (!(max > 0)) return null;
+  const ativa = dia.map(s => s.msgs >= max * 0.25);
+  for (let i = 0; i < 24; i++) {
+    if (ativa[i] || !ativa[(i + 23) % 24]) continue; // começo de uma pausa
+    let n = 0;
+    while (!ativa[(i + n) % 24] && n < 24) n++;
+    if (n <= 1) ativa[i] = true;
+  }
+  let inicio = 0, n = 24;
+  if (!ativa.every(Boolean)) {
+    let melhor = null;
+    for (let i = 0; i < 24; i++) {
+      if (!ativa[i] || ativa[(i + 23) % 24]) continue; // começo de sequência
+      let m = 0;
+      while (ativa[(i + m) % 24]) m++;
+      if (!melhor || m > melhor.m) melhor = { i, m };
+    }
+    inicio = melhor.i; n = melhor.m;
+  }
+  let pico = inicio;
+  for (let k = 0; k < n; k++) if (dia[(inicio + k) % 24].msgs > dia[pico].msgs) pico = (inicio + k) % 24;
+  return { inicio, fim: (inicio + n) % 24, pico };
+}
+
+// Previsão do limite semanal pelo padrão: k = % atual ÷ uso desde o início
+// da semana (reset − 7 dias) até a leitura; soma o uso médio de cada hora
+// restante (dia da semana × hora) até o reset e converte por k. Null quando
+// ainda não dá (sem semana completa no perfil, ou sem uso nesta semana) —
+// aí o painel usa a linha reta.
+function previsao(s, horas, p) {
+  if (!s || typeof s.pct !== 'number' || !s.resetsAt || !s.ts || !p || p.semanas < 1) return null;
+  const inicio = s.resetsAt - 7 * DIA_MS;
+  let usoSemana = 0;
+  for (let t = Math.floor(inicio / H_MS) * H_MS; t <= s.ts; t += H_MS) {
+    const b = horas[chaveHora(t)];
+    if (b && t < s.ts) usoSemana += b.uso;
+  }
+  if (!(usoSemana > 0)) return null;
+  const k = s.pct / usoSemana;
+  let pct = s.pct;
+  let batida = null;
+  let t = s.ts;
+  while (t < s.resetsAt) {
+    const d = new Date(t);
+    const fimHora = Math.min(new Date(d.getFullYear(), d.getMonth(), d.getDate(), d.getHours() + 1).getTime(), s.resetsAt);
+    const fracao = (fimHora - t) / H_MS;
+    const ganho = k * p.semana[d.getDay()][d.getHours()].uso * fracao;
+    if (batida == null && pct < 100 && pct + ganho >= 100) batida = t + ((100 - pct) / ganho) * (fimHora - t);
+    pct += ganho;
+    t = fimHora;
+  }
+  return { projecao: Math.round(pct), batida };
+}
+
+module.exports = { PESOS, chaveHora, lerLinhas, varrer, perfil, janelaAtiva, previsao };

@@ -77,7 +77,48 @@ const { varrer } = require('../padrao.js');
     assert.deepStrictEqual(e.horas['2026-11-10T09'], { uso: 7, msgs: 0 }, 'transcript apagado pelo Claude Code: histórico fica');
     assert.strictEqual(e.atualizadoEm, agora);
 
-    console.log('OK: padrão de uso (baldes por hora, varredura incremental)');
+    // ── Task 3: perfil, janela ativa, previsão ──
+    const { perfil, janelaAtiva, previsao, chaveHora } = require('../padrao.js');
+    const H = 3600000;
+    // 3 semanas inteiras de uso constante (10/h) e 1 mensagem por hora entre
+    // 21h e 2h; "hoje" (dia de agora) tem uso extra que NÃO pode entrar.
+    const hoje = new Date(2026, 10, 11, 20, 0).getTime();
+    const ini3 = new Date(2026, 9, 21, 0, 0).getTime();
+    const horas = {};
+    for (let t = ini3; t < hoje; t += H) {
+      const h = new Date(t).getHours();
+      horas[chaveHora(t)] = { uso: 10, msgs: (h >= 21 || h < 3) ? 1 : 0 };
+    }
+    horas[chaveHora(hoje - H)] = { uso: 9999, msgs: 50 };
+    const p = perfil(horas, hoje);
+    assert.strictEqual(p.semanas, 3, '21 dias inteiros antes de hoje');
+    assert.strictEqual(p.semana[3][14].uso, 10, 'quarta 14h: média 10');
+    assert.strictEqual(p.dia[23].msgs, 1);
+    assert.strictEqual(p.dia[19].uso, 10, 'o dia de hoje (com 9999) fica fora');
+    assert.deepStrictEqual(JSON.parse(JSON.stringify(janelaAtiva(p.dia))), { inicio: 21, fim: 3, pico: 21 }, 'janela passa da meia-noite: 21h–3h');
+    // Pausa de 1h (jantar, 20h) não parte o dia em dois; madrugada parada (5–8h) sim.
+    const dia2 = Array.from({ length: 24 }, (_, h) => ({ uso: 0, msgs: (h >= 8 && h <= 19) || h >= 21 || h <= 4 ? (h === 16 ? 3 : 1) : 0 }));
+    assert.deepStrictEqual(JSON.parse(JSON.stringify(janelaAtiva(dia2))), { inicio: 8, fim: 5, pico: 16 }, 'pausa de 1h é emendada; das 8h às 5h, pico 16h');
+    assert.strictEqual(janelaAtiva(Array.from({ length: 24 }, () => ({ uso: 0, msgs: 0 }))), null);
+
+    // Previsão: semana que reseta sábado 9h; leitura na metade (84h).
+    const reset = new Date(2026, 10, 14, 9, 0).getTime();
+    const iniSem = reset - 168 * H;
+    const ts = iniSem + 84 * H;
+    const horasSemana = {};
+    for (let t = iniSem; t < ts; t += H) horasSemana[chaveHora(t)] = { uso: 10, msgs: 0 };
+    const plano = { semanas: 3, semana: Array.from({ length: 7 }, () => Array.from({ length: 24 }, () => ({ uso: 10, msgs: 0 }))) };
+    assert.deepStrictEqual(JSON.parse(JSON.stringify(previsao({ pct: 40, ts, resetsAt: reset }, horasSemana, plano))), { projecao: 80, batida: null },
+      '40% com 840 de uso; faltam 84h × 10 = mais 40%');
+    const r = previsao({ pct: 60, ts, resetsAt: reset }, horasSemana, plano);
+    assert.strictEqual(r.batida, ts + 56 * H, 'faltam 40% = 560 de uso = 56h no ritmo de 10/h');
+    // Dia quieto à noite no perfil: a projeção cai em relação à linha reta.
+    const noturno = { semanas: 3, semana: plano.semana.map(d => d.map((s, h) => ({ uso: h >= 9 ? 10 : 0, msgs: 0 }))) };
+    assert.ok(previsao({ pct: 40, ts, resetsAt: reset }, horasSemana, noturno).projecao < 80, 'horas mortas no perfil não contam');
+    assert.strictEqual(previsao({ pct: 40, ts, resetsAt: reset }, horasSemana, { ...plano, semanas: 0 }), null, 'sem semana completa: linha reta');
+    assert.strictEqual(previsao({ pct: 40, ts, resetsAt: reset }, {}, plano), null, 'sem uso nesta semana: linha reta');
+
+    console.log('OK: padrão de uso (baldes por hora, varredura incremental, perfil, janela, previsão)');
   } finally {
     fs.rmSync(raiz, { recursive: true, force: true });
   }
