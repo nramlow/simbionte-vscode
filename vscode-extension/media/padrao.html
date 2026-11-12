@@ -70,9 +70,15 @@ function render(d) {
   const janela = j ? (j.inicio === j.fim ? "You're active around the clock" : `You're usually active ${hora(j.inicio)}–${hora(j.fim)} · busiest around ${hora(j.pico)}`) : 'No messages from you yet';
   document.getElementById('resumo').textContent = `${janela} · from the last ${d.dias} days (${d.semanas} week${d.semanas === 1 ? '' : 's'}).`;
   const p = d.previsao;
+  const quando = t => new Date(t).toLocaleString('en-US', { weekday: 'short', hour: 'numeric', minute: '2-digit' }).replace(',', '');
+  const f = p && typeof p.fator === 'number' ? p.fator : 1;
+  const base = !p ? '' : f >= 1.25 || f <= 0.8
+    ? `Weekly limit forecast from your usual hours, scaled to this week (${f >= 2 ? Math.round(f) : +f.toFixed(1)}× your usual)`
+    : 'Weekly limit forecast from your usual hours';
+  const rb = p && p.ritmo && p.ritmo.batida;
+  const recente = rb && (!p.batida || rb < p.batida) ? ` At the last 6 hours' pace (${p.ritmo.pctHora.toFixed(1)}% an hour): ${quando(rb)}.` : '';
   document.getElementById('previsao').textContent = !p ? 'Weekly limit forecast: needs a full past week and some use this week; the panel uses a straight line until then.'
-    : p.batida ? `Weekly limit forecast from your usual hours: you'd hit the limit around ${new Date(p.batida).toLocaleString('en-US', { weekday: 'short', hour: 'numeric', minute: '2-digit' }).replace(',', '')}.`
-      : `Weekly limit forecast from your usual hours: about ${p.projecao}% by reset.`;
+    : (p.batida ? `${base}: you'd hit the limit around ${quando(p.batida)}.` : `${base}: about ${p.projecao}% by reset.`) + recente;
   const diaAtual = new Date().getDay();
   document.getElementById('gradeClaude').innerHTML = grade(d.semana, 'uso', d.horaAtual, diaAtual);
   document.getElementById('gradeVoce').innerHTML = grade(d.semana, 'msgs', d.horaAtual, diaAtual);

@@ -10,9 +10,10 @@ const URLS_PATH = path.join(os.homedir(), '.claude', 'simbionte-urls.json');
 // teria que reimplementar o parser de checkbox. Vem empacotado em lib/
 // (prepare.js), então funciona mesmo antes de os hooks serem instalados.
 let progressoDoPlano = () => null, resumoSessoes = () => null, contextoDoTranscript = () => null, sessoesDaPasta = s => s;
+let registrarUso = null, usoDaApi = null;
 let lerPausa = () => ({ sessoes: {} }), pausarSessoes = () => {}, retomarSessoes = () => {};
 try {
-  ({ progressoDoPlano, resumoSessoes, contextoDoTranscript, sessoesDaPasta, lerPausa, pausar: pausarSessoes, retomar: retomarSessoes } = require('./lib/store.js'));
+  ({ progressoDoPlano, resumoSessoes, contextoDoTranscript, sessoesDaPasta, lerPausa, pausar: pausarSessoes, retomar: retomarSessoes, registrarUso, usoDaApi } = require('./lib/store.js'));
 } catch (e) { /* rodando do repo sem prepare.js — cai pro cache do hook */ }
 const { ARQUIVOS, hooksFaltando, adicionarHooks, removerHooks, arquivosDesatualizados, statusLineFaltando } = require('./lib/hooks-settings.js');
 
@@ -76,6 +77,38 @@ async function atualizarPadrao() {
   } catch (e) { /* tenta de novo na próxima rodada */ }
   finally { varrendo = false; }
 }
+// Leitura do statusLine velha (sessões do VS Code não o chamam): estima o %
+// de agora pelo uso desde então (padrao.estimativa). Hora da estimativa =
+// a da última varredura, que é até onde os baldes vão.
+function semanalEstimado(semanal) {
+  if (!padraoLib || !padraoEstado || !semanal) return semanal;
+  return padraoLib.estimativa(semanal, padraoEstado.horas, padraoEstado.atualizadoEm || Date.now()) || semanal;
+}
+// Limite semanal direto da Anthropic: o mesmo GET que o /usage do Claude
+// Code faz, com o token do login que o Claude Code guarda em
+// ~/.claude/.credentials.json. Só lê: token vencido fica pra o Claude Code
+// renovar (aí a estimativa cobre). Várias janelas do VS Code rodam isto;
+// pula se outra gravou há menos de 4,5 min. Nik aprovou em 2026-11-12;
+// endpoint não documentado, então qualquer falha só espera a próxima rodada.
+const USO_API_MS = 5 * 60 * 1000;
+async function consultarUsoApi() {
+  if (!registrarUso || !usoDaApi || typeof fetch !== 'function') return;
+  try {
+    let atual = null;
+    try { atual = JSON.parse(fs.readFileSync(path.join(DIR, '_uso.json'), 'utf8')).semanal; } catch (e) { /* 1ª vez */ }
+    if (atual && Date.now() - atual.ts < USO_API_MS - 30000) return;
+    const cred = JSON.parse(fs.readFileSync(path.join(os.homedir(), '.claude', '.credentials.json'), 'utf8')).claudeAiOauth;
+    if (!cred || !cred.accessToken || (cred.expiresAt && cred.expiresAt < Date.now())) return;
+    const r = await fetch('https://api.anthropic.com/api/oauth/usage', {
+      headers: { Authorization: `Bearer ${cred.accessToken}`, 'anthropic-beta': 'oauth-2025-04-20', 'Content-Type': 'application/json' },
+      signal: AbortSignal.timeout(15000),
+    });
+    if (!r.ok) return;
+    const dado = usoDaApi(await r.json());
+    if (dado) registrarUso(dado);
+  } catch (e) { /* rede, arquivo, formato: tenta na próxima */ }
+}
+
 function resumoPadrao(semanal) {
   if (!padraoLib || !padraoEstado) return null;
   const agora = Date.now();
@@ -100,7 +133,7 @@ async function mostrarPadrao(extensionUri) {
     painelPadrao.onDidDispose(() => { painelPadrao = null; });
   }
   let semanal = null;
-  try { semanal = JSON.parse(fs.readFileSync(path.join(DIR, '_uso.json'), 'utf8')).semanal || null; } catch (e) { /* sem statusLine ainda */ }
+  try { semanal = semanalEstimado(JSON.parse(fs.readFileSync(path.join(DIR, '_uso.json'), 'utf8')).semanal || null); } catch (e) { /* sem statusLine ainda */ }
   painelPadrao.webview.postMessage({ type: 'padrao', dados: resumoPadrao(semanal) });
 }
 
@@ -589,7 +622,7 @@ function usoAtual(sessao) {
     const janela = ((uso.janelas || {})[c.modelo]) || (c.tokens > 200000 ? 1000000 : 200000);
     contexto = { pct: Math.min(100, (c.tokens / janela) * 100), tokens: c.tokens, janela };
   }
-  return { contexto, semanal: uso.semanal || null };
+  return { contexto, semanal: semanalEstimado(uso.semanal || null) };
 }
 
 // Popup só na transição pra "travada", uma vez por episódio de cada sessão.
@@ -634,6 +667,10 @@ function activate(context) {
   // Padrão de uso: 1ª varredura 5s depois de abrir (não atrasa a ativação), depois a cada 10 min.
   const primeiraVarredura = setTimeout(atualizarPadrao, 5000);
   const varreduras = setInterval(atualizarPadrao, 10 * 60 * 1000);
+  // Limite semanal da API: logo ao abrir, depois a cada 5 min.
+  const primeiraConsulta = setTimeout(consultarUsoApi, 2000);
+  const consultas = setInterval(consultarUsoApi, USO_API_MS);
+  context.subscriptions.push({ dispose: () => { clearTimeout(primeiraConsulta); clearInterval(consultas); } });
   context.subscriptions.push({ dispose: () => { clearTimeout(primeiraVarredura); clearInterval(varreduras); } });
   context.subscriptions.push({ dispose: () => clearInterval(timer) });
   context.subscriptions.push(

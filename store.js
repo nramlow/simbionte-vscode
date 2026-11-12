@@ -627,6 +627,21 @@ function aplicarUso(estado, data, agora) {
   return e;
 }
 
+// Resposta de GET api.anthropic.com/api/oauth/usage (a mesma do /usage do
+// Claude Code; a extensão consulta a cada 5 min porque o statusLine só roda
+// em terminal — achado 2026-11-12: leitura de 9,5h). Converte pro formato
+// do statusLine, pra passar pelo mesmo aplicarUso. limits[weekly_all] é o
+// que o app mostra; seven_day.utilization é o mesmo número no formato
+// antigo. Null se não reconhece (endpoint não documentado pode mudar).
+function usoDaApi(json) {
+  const geral = json && Array.isArray(json.limits) && json.limits.find(l => l && l.kind === 'weekly_all');
+  const sd = json && json.seven_day;
+  const pct = geral && typeof geral.percent === 'number' ? geral.percent : sd && typeof sd.utilization === 'number' ? sd.utilization : null;
+  const resets = Date.parse((geral && geral.resets_at) || (sd && sd.resets_at) || '');
+  if (pct == null || !resets) return null;
+  return { rate_limits: { seven_day: { used_percentage: pct, resets_at: Math.round(resets / 1000) } } };
+}
+
 function registrarUso(data) {
   const lock = adquirirLock('_uso');
   try {
@@ -658,4 +673,4 @@ function contextoDoTranscript(texto) {
   return null;
 }
 
-module.exports = { copiaMaisNovaDoPlano, resolverProjeto, resolverProjetoAtivo, lerProjeto, atualizarProgresso, registrarAtividade, registrarHeartbeat, lerPausa, pausar, retomar, bloqueioPausa, estadoDaSessao, resumoSessoes, sessoesDaPasta, progressoDoPlano, projetosExtrasDoPlano, registrarToque, viaBashNovo, comandoEscrevePlano, aplicarEventoAgente, registrarEventoAgente , aplicarUso, registrarUso, contextoDoTranscript };
+module.exports = { copiaMaisNovaDoPlano, resolverProjeto, resolverProjetoAtivo, lerProjeto, atualizarProgresso, registrarAtividade, registrarHeartbeat, lerPausa, pausar, retomar, bloqueioPausa, estadoDaSessao, resumoSessoes, sessoesDaPasta, progressoDoPlano, projetosExtrasDoPlano, registrarToque, viaBashNovo, comandoEscrevePlano, aplicarEventoAgente, registrarEventoAgente , aplicarUso, registrarUso, usoDaApi, contextoDoTranscript };

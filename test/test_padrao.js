@@ -108,13 +108,60 @@ const { varrer } = require('../padrao.js');
     const horasSemana = {};
     for (let t = iniSem; t < ts; t += H) horasSemana[chaveHora(t)] = { uso: 10, msgs: 0 };
     const plano = { semanas: 3, semana: Array.from({ length: 7 }, () => Array.from({ length: 24 }, () => ({ uso: 10, msgs: 0 }))) };
-    assert.deepStrictEqual(JSON.parse(JSON.stringify(previsao({ pct: 40, ts, resetsAt: reset }, horasSemana, plano))), { projecao: 80, batida: null },
-      '40% com 840 de uso; faltam 84h × 10 = mais 40%');
+    const r40 = previsao({ pct: 40, ts, resetsAt: reset }, horasSemana, plano);
+    assert.strictEqual(r40.projecao, 80, '40% com 840 de uso; faltam 84h × 10 = mais 40%');
+    assert.strictEqual(r40.batida, null);
+    assert.strictEqual(r40.fator, 1, 'semana igual ao perfil');
+    assert.strictEqual(r40.ritmo.batida, null, 'no ritmo das últimas 6h também não bate antes do reset');
     const r = previsao({ pct: 60, ts, resetsAt: reset }, horasSemana, plano);
     assert.strictEqual(r.batida, ts + 56 * H, 'faltam 40% = 560 de uso = 56h no ritmo de 10/h');
-    // Dia quieto à noite no perfil: a projeção cai em relação à linha reta.
+    // Dia quieto à noite no perfil (e nesta semana): a projeção cai em relação à linha reta.
     const noturno = { semanas: 3, semana: plano.semana.map(d => d.map((s, h) => ({ uso: h >= 9 ? 10 : 0, msgs: 0 }))) };
-    assert.ok(previsao({ pct: 40, ts, resetsAt: reset }, horasSemana, noturno).projecao < 80, 'horas mortas no perfil não contam');
+    const horasNoturnas = {};
+    for (let t = iniSem; t < ts; t += H) horasNoturnas[chaveHora(t)] = { uso: new Date(t).getHours() >= 9 ? 10 : 0, msgs: 0 };
+    const rn = previsao({ pct: 40, ts, resetsAt: reset }, horasNoturnas, noturno);
+    assert.strictEqual(rn.fator, 1);
+    assert.ok(rn.projecao < 80, 'horas mortas no perfil não contam');
+
+    // Semana mais pesada que o perfil (prazo, achado 2026-11-12: 4× a média de
+    // 8 semanas): o perfil é escalado pelo fator desta semana.
+    const pesadas = {};
+    for (let t = iniSem; t < ts; t += H) pesadas[chaveHora(t)] = { uso: 20, msgs: 0 };
+    const rp = previsao({ pct: 40, ts, resetsAt: reset }, pesadas, plano);
+    assert.strictEqual(rp.fator, 2, '20/h contra 10/h do perfil');
+    assert.strictEqual(rp.projecao, 80, 'sem o fator daria 60%');
+    // Menos de 24h de semana: fator ainda instável, fica 1.
+    const tsCedo = iniSem + 12 * H;
+    assert.strictEqual(previsao({ pct: 5, ts: tsCedo, resetsAt: reset }, pesadas, plano).fator, 1, '12h de semana: fator 1');
+
+    // Ritmo das últimas 6 horas inteiras: pico recente avisa antes.
+    const pico = { ...horasSemana };
+    for (let t = ts - 6 * H; t < ts; t += H) pico[chaveHora(t)] = { uso: 40, msgs: 0 };
+    const rr = previsao({ pct: 50, ts, resetsAt: reset }, pico, plano);
+    const k = 50 / (78 * 10 + 6 * 40);
+    assert.ok(Math.abs(rr.ritmo.pctHora - k * 40) < 1e-9, '% por hora = k × uso médio das 6h');
+    assert.ok(Math.abs(rr.ritmo.batida - (ts + (50 / (k * 40)) * H)) < 1000, 'faltam 50% nesse ritmo');
+
+    // ── Estimativa quando a leitura do statusLine está velha ──
+    const { estimativa } = require('../padrao.js');
+    const depois = { ...horasSemana };
+    for (let t = ts; t < ts + 5 * H; t += H) depois[chaveHora(t)] = { uso: 10, msgs: 0 };
+    assert.strictEqual(estimativa({ pct: 40, ts, resetsAt: reset }, depois, ts + 10 * 60000), null, 'leitura de 10 min: vale a leitura');
+    const e5 = estimativa({ pct: 40, ts, resetsAt: reset }, depois, ts + 5 * H + 30 * 60000);
+    assert.ok(Math.abs(e5.pct - (40 + 50 * 40 / 840)) < 1e-9, '40% + 50 de uso × k');
+    assert.strictEqual(e5.resetsAt, reset);
+    assert.strictEqual(e5.ts, ts + 5 * H + 30 * 60000);
+    assert.strictEqual(e5.estimado, true);
+    assert.deepStrictEqual(e5.lido, { pct: 40, ts });
+    // Passou do reset: semana nova a partir de 0, mesmo k.
+    const novaSemana = { ...depois };
+    for (let t = reset; t < reset + 3 * H; t += H) novaSemana[chaveHora(t)] = { uso: 10, msgs: 0 };
+    const en = estimativa({ pct: 40, ts, resetsAt: reset }, novaSemana, reset + 3 * H + 60000);
+    assert.ok(Math.abs(en.pct - 30 * 40 / 840) < 1e-9, 'só o uso depois do reset');
+    assert.strictEqual(en.resetsAt, reset + 168 * H);
+    assert.ok(estimativa({ pct: 99, ts, resetsAt: reset }, { ...depois, ...pico }, ts + 5 * H).pct <= 100, 'teto de 100%');
+    assert.strictEqual(estimativa({ pct: 40, ts, resetsAt: reset }, {}, ts + 5 * H), null, 'sem uso nesta semana: não dá pra calibrar');
+    assert.strictEqual(estimativa(null, depois, ts), null);
     assert.strictEqual(previsao({ pct: 40, ts, resetsAt: reset }, horasSemana, { ...plano, semanas: 0 }), null, 'sem semana completa: linha reta');
     assert.strictEqual(previsao({ pct: 40, ts, resetsAt: reset }, {}, plano), null, 'sem uso nesta semana: linha reta');
 

@@ -669,18 +669,25 @@ const diaHora = ts => new Date(ts).toLocaleString('en-US', { weekday: 'short', h
 
 // Previsão pelo padrão de uso (padrao.js, lado da extensão) quando existe;
 // senão a linha reta acima.
+// Semana de prazo (achado 2026-11-12) roda muito acima do perfil: a
+// previsão já vem escalada pelo fator desta semana, e o texto diz o fator.
+// O ritmo das últimas 6h entra quando bate 100% antes da previsão.
+const fatorTexto = f => (f >= 2 ? Math.round(f) : +f.toFixed(1)) + '×';
 function renderRitmo(s, previsaoPadrao) {
   const el = document.getElementById('ritmo');
   const p = s && previsaoPadrao;
   const r = p ? (p.batida ? { estado: 'estoura', batida: p.batida } : { estado: 'ok', projecao: p.projecao }) : ritmoSemanal(s);
-  const fonte = p ? ' · from your usual hours' : '';
+  const f = p && typeof p.fator === 'number' ? p.fator : 1;
+  const fonte = !p ? '' : f >= 1.25 || f <= 0.8 ? ` · this week runs ${fatorTexto(f)} your usual` : ' · from your usual hours';
+  const rb = p && p.ritmo && p.ritmo.batida;
+  const recente = rb && (!p.batida || rb < p.batida) ? ` · at the last 6h pace: ${diaHora(rb)}` : '';
   el.hidden = !r;
-  el.classList.toggle('alto', !!r && r.estado === 'ok' && r.projecao > 90);
-  el.classList.toggle('critico', !!r && r.estado === 'estoura');
+  el.classList.toggle('alto', !!r && r.estado === 'ok' && r.projecao > 90 && !recente);
+  el.classList.toggle('critico', !!r && (r.estado === 'estoura' || !!recente));
   el.textContent = !r ? ''
     : r.estado === 'cedo' ? 'Too early in the week to tell the pace'
-      : r.estado === 'ok' ? `On track · about ${r.projecao}% by reset${fonte}`
-        : `Ahead of pace · limit around ${diaHora(r.batida)}${fonte}`;
+      : (r.estado === 'ok' ? `On track · about ${r.projecao}% by reset${fonte}`
+        : `Ahead of pace · limit around ${diaHora(r.batida)}${fonte}`) + recente;
 }
 
 // Faixas de 24h do padrão: Claude (uso) e você (mensagens), hora atual
@@ -713,6 +720,11 @@ function renderUso(uso, padrao) {
   const s = uso && uso.semanal;
   if (!s) return pintarMedidor('medSemanal', null, 'run Claude in a terminal');
   const reinicia = diaHora(s.resetsAt);
+  if (s.estimado && s.lido) {
+    pintarMedidor('medSemanal', s.pct, `est. from ${Math.round(s.lido.pct)}% ${idadeLegivel(Date.now() - s.lido.ts)} · resets ${reinicia}`);
+    document.getElementById('medSemanalPct').textContent = `~${Math.round(Math.min(s.pct, 100))}%`;
+    return;
+  }
   const idade = Date.now() - s.ts;
   const velho = idade > 30 * 60000 ? ` · as of ${idadeLegivel(idade)}` : '';
   pintarMedidor('medSemanal', s.pct, `resets ${reinicia}${velho}`);

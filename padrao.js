@@ -182,21 +182,39 @@ function janelaAtiva(dia) {
   return { inicio, fim: (inicio + n) % 24, pico };
 }
 
-// Previsão do limite semanal pelo padrão: k = % atual ÷ uso desde o início
-// da semana (reset − 7 dias) até a leitura; soma o uso médio de cada hora
-// restante (dia da semana × hora) até o reset e converte por k. Null quando
-// ainda não dá (sem semana completa no perfil, ou sem uso nesta semana) —
-// aí o painel usa a linha reta.
-function previsao(s, horas, p) {
-  if (!s || typeof s.pct !== 'number' || !s.resetsAt || !s.ts || !p || p.semanas < 1) return null;
+// Uso da semana até a leitura e o k que converte uso em % do limite
+// (k = % lido ÷ uso desde reset − 7 dias). Balde da hora conta se começou
+// antes da leitura.
+function calibrar(s, horas) {
   const inicio = s.resetsAt - 7 * DIA_MS;
   let usoSemana = 0;
-  for (let t = Math.floor(inicio / H_MS) * H_MS; t <= s.ts; t += H_MS) {
+  for (let t = Math.floor(inicio / H_MS) * H_MS; t < s.ts; t += H_MS) {
     const b = horas[chaveHora(t)];
-    if (b && t < s.ts) usoSemana += b.uso;
+    if (b) usoSemana += b.uso;
   }
-  if (!(usoSemana > 0)) return null;
-  const k = s.pct / usoSemana;
+  return usoSemana > 0 ? { inicio, usoSemana, k: s.pct / usoSemana } : null;
+}
+
+// Previsão do limite semanal pelo padrão: soma o uso médio de cada hora
+// restante (dia da semana × hora) até o reset, converte por k (calibrar).
+// O perfil é a média de até 8 semanas; semana de prazo roda bem acima disso
+// (achado 2026-11-12: 4× a média, a previsão dizia 82% e o limite estourava
+// antes do reset). Por isso o perfil é escalado pelo fator desta semana =
+// uso real ÷ uso que o perfil esperava nas mesmas horas — só depois de 24h
+// de semana, antes disso o fator é ruído. ritmo: % por hora nas últimas 6
+// horas inteiras e quando esse ritmo bate 100% (null se não bate antes do
+// reset). Null quando ainda não dá (sem semana completa no perfil, ou sem
+// uso nesta semana) — aí o painel usa a linha reta.
+const HORAS_RITMO = 6;
+function previsao(s, horas, p) {
+  if (!s || typeof s.pct !== 'number' || !s.resetsAt || !s.ts || !p || p.semanas < 1) return null;
+  const cal = calibrar(s, horas);
+  if (!cal) return null;
+  const { inicio, usoSemana, k } = cal;
+  const perfilDe = t => { const d = new Date(t); return p.semana[d.getDay()][d.getHours()].uso; };
+  let esperado = 0;
+  for (let t = Math.floor(inicio / H_MS) * H_MS; t < s.ts; t += H_MS) esperado += perfilDe(t);
+  const fator = s.ts - inicio >= DIA_MS && esperado > 0 ? usoSemana / esperado : 1;
   let pct = s.pct;
   let batida = null;
   let t = s.ts;
@@ -204,12 +222,47 @@ function previsao(s, horas, p) {
     const d = new Date(t);
     const fimHora = Math.min(new Date(d.getFullYear(), d.getMonth(), d.getDate(), d.getHours() + 1).getTime(), s.resetsAt);
     const fracao = (fimHora - t) / H_MS;
-    const ganho = k * p.semana[d.getDay()][d.getHours()].uso * fracao;
+    const ganho = k * fator * perfilDe(t) * fracao;
     if (batida == null && pct < 100 && pct + ganho >= 100) batida = t + ((100 - pct) / ganho) * (fimHora - t);
     pct += ganho;
     t = fimHora;
   }
-  return { projecao: Math.round(pct), batida };
+  const horaDaLeitura = Math.floor(s.ts / H_MS) * H_MS;
+  let usoRecente = 0;
+  for (let h = horaDaLeitura - HORAS_RITMO * H_MS; h < horaDaLeitura; h += H_MS) {
+    const b = horas[chaveHora(h)];
+    if (b) usoRecente += b.uso;
+  }
+  const pctHora = (k * usoRecente) / HORAS_RITMO;
+  const batidaRitmo = s.pct < 100 && pctHora > 0 ? s.ts + ((100 - s.pct) / pctHora) * H_MS : null;
+  return {
+    projecao: Math.round(pct), batida, fator,
+    ritmo: { pctHora, batida: batidaRitmo != null && batidaRitmo < s.resetsAt ? batidaRitmo : null },
+  };
 }
 
-module.exports = { PESOS, chaveHora, lerLinhas, varrer, perfil, janelaAtiva, previsao };
+// O statusLine só roda em terminal; sessões do VS Code nunca atualizam o %
+// (achado 2026-11-12: leitura de 9,5h, painel 58%, real 72%). Leitura com
+// mais de 30 min: % ≈ lido + k × uso desde a leitura (k de calibrar).
+// Passou do reset: semana nova a partir de 0, mesmo k. No dado real deu 78%
+// contra 72% (o peso dos tokens não é o do limite), por isso o painel
+// marca com "~". Teto de 100%.
+const ESTIMA_APOS_MS = 30 * 60000;
+function estimativa(s, horas, agora) {
+  if (!s || typeof s.pct !== 'number' || !s.resetsAt || !s.ts || agora - s.ts <= ESTIMA_APOS_MS) return null;
+  const cal = calibrar(s, horas);
+  if (!cal) return null;
+  let resetsAt = s.resetsAt;
+  let desde = s.ts;
+  let base = s.pct;
+  while (agora >= resetsAt) { desde = resetsAt; resetsAt += 7 * DIA_MS; base = 0; }
+  let uso = 0;
+  for (let t = Math.floor(desde / H_MS) * H_MS; t < agora; t += H_MS) {
+    if (t < desde && desde === s.ts) continue; // balde da leitura já entrou na calibragem
+    const b = horas[chaveHora(t)];
+    if (b) uso += b.uso;
+  }
+  return { pct: Math.min(100, base + cal.k * uso), resetsAt, ts: agora, estimado: true, lido: { pct: s.pct, ts: s.ts } };
+}
+
+module.exports = { PESOS, chaveHora, lerLinhas, varrer, perfil, janelaAtiva, previsao, estimativa };

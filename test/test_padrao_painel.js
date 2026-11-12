@@ -31,6 +31,10 @@ assert.ok(/Wed 4 PM[^"]*" style="opacity:1(\.0+)?"/.test(claude), 'célula mais 
 assert.strictEqual(elementos.resumo.textContent, "You're usually active 8 AM–6 AM · busiest around 4 PM · from the last 56 days (8 weeks).");
 assert.strictEqual(elementos.previsao.textContent, 'Weekly limit forecast from your usual hours: about 71% by reset.');
 
+ouvinte({ data: { type: 'padrao', dados: { semana, dia, semanas: 8, dias: 56, janela: { inicio: 8, fim: 6, pico: 16 }, horaAtual: 16,
+  previsao: { projecao: 113, batida: new Date(2026, 10, 13, 23, 0).getTime(), fator: 4.05, ritmo: { pctHora: 2.23, batida: new Date(2026, 10, 12, 16, 0).getTime() } } } } });
+assert.strictEqual(elementos.previsao.textContent, "Weekly limit forecast from your usual hours, scaled to this week (4× your usual): you'd hit the limit around Fri 11:00 PM. At the last 6 hours' pace (2.2% an hour): Thu 4:00 PM.");
+
 ouvinte({ data: { type: 'padrao', dados: null } });
 assert.strictEqual(elementos.resumo.textContent, 'Still learning: no transcripts read yet.');
 

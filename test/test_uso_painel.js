@@ -47,6 +47,11 @@ assert.ok(elementos.medContexto.classList.contains('critico'), '≥95%: vermelho
 assert.ok(elementos.medSemanal.classList.contains('alto') && !elementos.medSemanal.classList.contains('critico'), '≥80%: âmbar');
 assert.strictEqual(elementos.medSemanalSub.textContent, 'resets Sat 9:00 AM · as of 3h ago', 'dado velho diz a idade');
 
+// Leitura estimada (statusLine/API velhos; padrao.estimativa na extensão).
+ctx.renderUso({ contexto: null, semanal: { pct: 78.2, resetsAt: sabado, ts: agora, estimado: true, lido: { pct: 58, ts: agora - 9 * 3600000 } } });
+assert.strictEqual(elementos.medSemanalPct.textContent, '~78%', 'estimativa marcada com ~');
+assert.strictEqual(elementos.medSemanalSub.textContent, 'est. from 58% 9h ago · resets Sat 9:00 AM');
+
 ctx.renderUso({ contexto: null, semanal: null });
 assert.strictEqual(elementos.medContextoPct.textContent, '–');
 assert.strictEqual(elementos.medContextoSub.textContent, 'no session yet');
@@ -94,6 +99,17 @@ assert.ok(elementos.faixaClaude.innerHTML.includes('title="12 PM'), 'célula diz
 assert.strictEqual(elementos.faixaResumo.textContent, 'usually active 8 AM–6 AM · peak 4 PM');
 ctx.renderUso({ contexto: null, semanal: leitura(58, 104.9) }, { ...padrao, previsao: { projecao: 130, batida: new Date(2026, 10, 13, 15, 0).getTime() } });
 assert.strictEqual(elementos.ritmo.textContent, 'Ahead of pace · limit around Fri 3:00 PM · from your usual hours');
+// Semana de prazo: o fator aparece; o ritmo das últimas 6h avisa quando bate antes.
+const qui16 = new Date(2026, 10, 12, 16, 0).getTime();
+const sex23 = new Date(2026, 10, 13, 23, 0).getTime();
+ctx.renderUso({ contexto: null, semanal: leitura(72, 114) }, { ...padrao, previsao: { projecao: 113, batida: sex23, fator: 4.05, ritmo: { pctHora: 2.2, batida: qui16 } } });
+assert.strictEqual(elementos.ritmo.textContent, 'Ahead of pace · limit around Fri 11:00 PM · this week runs 4× your usual · at the last 6h pace: Thu 4:00 PM');
+assert.ok(elementos.ritmo.classList.contains('critico'));
+ctx.renderUso({ contexto: null, semanal: leitura(50, 84) }, { ...padrao, previsao: { projecao: 88, batida: null, fator: 1.5, ritmo: { pctHora: 1.5, batida: qui16 } } });
+assert.strictEqual(elementos.ritmo.textContent, 'On track · about 88% by reset · this week runs 1.5× your usual · at the last 6h pace: Thu 4:00 PM');
+assert.ok(elementos.ritmo.classList.contains('critico'), 'o ritmo recente estoura: vermelho mesmo com projeção ok');
+ctx.renderUso({ contexto: null, semanal: leitura(50, 84) }, { ...padrao, previsao: { projecao: 88, batida: sex23, fator: 1, ritmo: { pctHora: 0.5, batida: new Date(2026, 10, 14, 1, 0).getTime() } } });
+assert.strictEqual(elementos.ritmo.textContent, 'Ahead of pace · limit around Fri 11:00 PM · from your usual hours', 'ritmo recente mais tarde que a previsão: não repete');
 ctx.renderUso({ contexto: null, semanal: leitura(30, 84) }, { ...padrao, previsao: null });
 assert.strictEqual(elementos.ritmo.textContent, 'On track · about 60% by reset', 'sem previsão pelo padrão: linha reta');
 ctx.renderUso({ contexto: null, semanal: leitura(30, 84) }, null);

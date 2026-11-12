@@ -11,7 +11,7 @@ const { execFileSync } = require('child_process');
 const home = fs.mkdtempSync(path.join(os.tmpdir(), 'simbionte-uso-'));
 process.env.HOME = home;
 process.env.USERPROFILE = home;
-const { aplicarUso, contextoDoTranscript, registrarHeartbeat } = require('../store.js');
+const { aplicarUso, usoDaApi, contextoDoTranscript, registrarHeartbeat } = require('../store.js');
 
 // aplicarUso: semanal + tamanho da janela por modelo (sem o "[1m]")
 const T = 1794440000000;
@@ -27,6 +27,24 @@ u = aplicarUso(u, { model: { id: 'claude-haiku-4-5' }, context_window: { context
 assert.strictEqual(u.semanal.ts, T, 'sem rate_limits (antes da 1ª resposta / não-assinante): semanal anterior fica');
 assert.strictEqual(u.janelas['claude-haiku-4-5'], 200000);
 assert.strictEqual(u.janelas['claude-opus-5-5'], 1000000);
+
+// usoDaApi: resposta real do /api/oauth/usage (2026-11-12) -> formato do statusLine
+const api = {
+  five_hour: null,
+  seven_day: { utilization: 72.0, resets_at: '2026-11-14T15:00:00.049550+00:00' },
+  limits: [
+    { kind: 'weekly_all', group: 'weekly', percent: 72, resets_at: '2026-11-14T15:00:00.049550+00:00', is_active: true },
+    { kind: 'weekly_scoped', group: 'weekly', percent: 40, resets_at: '2026-11-14T15:00:00.049713+00:00', scope: { model: { display_name: 'Fable' } } },
+  ],
+};
+assert.deepStrictEqual(usoDaApi(api), { rate_limits: { seven_day: { used_percentage: 72, resets_at: 1794668400 } } }, 'weekly_all, não o escopo Fable');
+assert.strictEqual(usoDaApi({ seven_day: { utilization: 64.5, resets_at: '2026-11-14T15:00:00Z' } }).rate_limits.seven_day.used_percentage, 64.5, 'formato antigo sem limits');
+assert.strictEqual(usoDaApi({ seven_day: null, limits: [] }), null, 'sem semanal: nada');
+assert.strictEqual(usoDaApi({ error: { type: 'authentication_error' } }), null);
+assert.strictEqual(usoDaApi(null), null);
+const uApi = aplicarUso(u, usoDaApi(api), T + 2);
+assert.deepStrictEqual(uApi.semanal, { pct: 72, resetsAt: 1794668400000, ts: T + 2 }, 'passa pelo mesmo aplicarUso');
+assert.strictEqual(uApi.janelas['claude-opus-5-5'], 1000000, 'janelas ficam');
 
 // contextoDoTranscript: última resposta da thread principal
 const linha = o => JSON.stringify(o);
