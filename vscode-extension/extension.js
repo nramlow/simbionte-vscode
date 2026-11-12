@@ -10,8 +10,9 @@ const URLS_PATH = path.join(os.homedir(), '.claude', 'simbionte-urls.json');
 // teria que reimplementar o parser de checkbox. Vem empacotado em lib/
 // (prepare.js), então funciona mesmo antes de os hooks serem instalados.
 let progressoDoPlano = () => null, resumoSessoes = () => null, contextoDoTranscript = () => null, sessoesDaPasta = s => s;
+let lerPausa = () => ({ sessoes: {} }), pausarSessoes = () => {}, retomarSessoes = () => {};
 try {
-  ({ progressoDoPlano, resumoSessoes, contextoDoTranscript, sessoesDaPasta } = require('./lib/store.js'));
+  ({ progressoDoPlano, resumoSessoes, contextoDoTranscript, sessoesDaPasta, lerPausa, pausar: pausarSessoes, retomar: retomarSessoes } = require('./lib/store.js'));
 } catch (e) { /* rodando do repo sem prepare.js — cai pro cache do hook */ }
 const { ARQUIVOS, hooksFaltando, adicionarHooks, removerHooks, arquivosDesatualizados, statusLineFaltando } = require('./lib/hooks-settings.js');
 
@@ -124,6 +125,66 @@ function anexarProgramas(projetos) {
     const r = porRaiz.get(raiz);
     return r ? { ...p, programa: r } : p;
   });
+}
+
+// Pausar / retomar (pausa.js): ⏸ numa linha ou grupo do painel pede às
+// sessões dali que terminem o que roda e parem (pra recarregar o VS Code sem
+// cortar tarefas longas); ▶ manda continuar. Os hooks garantem a pausa.
+let pausaLib = null;
+try { pausaLib = require('./lib/pausa.js'); } catch (e) { /* rodando do repo sem prepare.js */ }
+let ultimosProjetos = [];
+function lerAgentesBruto() {
+  try { return JSON.parse(fs.readFileSync(path.join(DIR, '_agentes.json'), 'utf8')).sessoes || {}; } catch (e) { return {}; }
+}
+function anexarPausas(projetos) {
+  if (!pausaLib) return projetos;
+  const pz = lerPausa().sessoes;
+  if (!Object.keys(pz).length) return projetos;
+  const sessoes = lerSessoes();
+  const ag = lerAgentesBruto();
+  return projetos.map(p => {
+    const ids = pausaLib.alvos([p], sessoes).filter(id => pz[id]);
+    if (!ids.length) return p;
+    let agentes = 0, shells = 0, todas = true;
+    for (const id of ids) {
+      const s = ag[id] || {};
+      const vivos = Object.values(s.agentes || {}).filter(a => !a.fim).length;
+      agentes += vivos; shells += s.shells || 0;
+      if (pausaLib.estadoPausa(sessoes[id], vivos, s.shells || 0) !== 'pausado') todas = false;
+    }
+    return { ...p, pausa: { estado: todas ? 'pausado' : 'pausando', agentes, shells, sessoes: ids.length } };
+  });
+}
+async function pausarOuRetomar(acao, ids) {
+  if (!pausaLib) return;
+  const linhas = ultimosProjetos.filter(p => ids.includes(p.projectId));
+  if (!linhas.length) return;
+  const nome = linhas.length > 1 ? ((linhas[0].grupo && linhas[0].grupo.nome) || linhas.map(p => p.projectName).join(', ')) : linhas[0].projectName;
+  const sessoes = lerSessoes();
+  const alvos = pausaLib.alvos(linhas, sessoes);
+  const plural = n => (n === 1 ? '' : 's');
+  if (acao === 'pausar') {
+    if (!alvos.length) return vscode.window.showInformationMessage(`Symbiont: no running Claude session found in ${nome}.`);
+    const ok = await vscode.window.showWarningMessage(
+      `Pause ${alvos.length} Claude session${plural(alvos.length)} working in ${nome}? Running work (agents, test runs, commits) finishes, nothing new starts, then they stop.`,
+      { modal: true }, 'Pause');
+    if (ok !== 'Pause') return;
+    pausarSessoes(alvos, nome);
+    const enviados = await Promise.all(alvos.map(id => pausaLib.enviar(sessoes[id] && sessoes[id].inbox, 'Symbiont', pausaLib.mensagemPausa(nome))));
+    const falhas = enviados.filter(x => !x).length;
+    vscode.window.showInformationMessage(`Symbiont: pausing ${alvos.length} session${plural(alvos.length)} in ${nome}.`
+      + (falhas ? ` ${falhas} couldn't be messaged yet (its inbox is learned at its next prompt); new agents and background commands are blocked there anyway.` : ' The row shows "paused · safe to reload" once everything has stopped.'));
+  } else {
+    const pz = lerPausa().sessoes;
+    const pausadas = alvos.filter(id => pz[id]);
+    if (!pausadas.length) return;
+    retomarSessoes(pausadas);
+    const enviados = await Promise.all(pausadas.map(id => pausaLib.enviar(sessoes[id] && sessoes[id].inbox, 'Symbiont', pausaLib.MENSAGEM_RETOMA)));
+    const falhas = enviados.filter(x => !x).length;
+    vscode.window.showInformationMessage(`Symbiont: resumed ${pausadas.length} session${plural(pausadas.length)} in ${nome}.`
+      + (falhas ? ` ${falhas} couldn't be messaged; tell ${falhas === 1 ? 'it' : 'them'} to continue.` : ''));
+  }
+  if (enviarAtual) enviarAtual();
 }
 
 let transicoes = null;
@@ -384,7 +445,8 @@ class SimbiontePainelProvider {
     };
     const enviar = () => {
       const atual = projetoAtual();
-      const projetos = anexarProgramas(marcarOcultos(agentesNoPainel(agruparProjetos(lerTodosProjetos(atual)))));
+      const projetos = anexarPausas(anexarProgramas(marcarOcultos(agentesNoPainel(agruparProjetos(lerTodosProjetos(atual))))));
+      ultimosProjetos = projetos;
       checarTransicoes(projetos);
       const sessao = sessaoAtual(vscode.workspace.workspaceFolders?.[0]?.uri.fsPath);
       const uso = usoAtual(sessao);
@@ -433,6 +495,8 @@ class SimbiontePainelProvider {
           vscode.window.showTextDocument(vscode.Uri.file(msg.path))
             .then(undefined, () => vscode.window.showWarningMessage('File not found: ' + msg.path));
         }
+      } else if ((msg.type === 'pausar' || msg.type === 'retomar') && Array.isArray(msg.projectIds)) {
+        pausarOuRetomar(msg.type, msg.projectIds);
       } else if (msg.type === 'abrirPadrao') {
         vscode.commands.executeCommand('simbionte.mostrarPadrao');
       } else if (msg.type === 'openProject' && msg.path) {

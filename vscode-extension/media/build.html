@@ -222,6 +222,12 @@
   .grupo-membro .status-dot{width:7px;height:7px;}
   .grupo-membro.atual{background:var(--glass-hi);}
   .grupo-membro.clickable:hover{background:rgba(63,232,196,.06);}
+  /* pausa: botão discreto (só no hover, ou sempre quando pausada) */
+  .pausa-btn{flex:none;color:var(--dim);font-size:var(--fs-xs);opacity:0;cursor:pointer;padding:0 4px;border-radius:4px;transition:opacity .15s,color .15s;}
+  .status-row:hover .pausa-btn,.grupo-membro:hover .pausa-btn,.grupo-cabeca:hover .pausa-btn,.pausa-btn:focus,.pausa-btn[data-acao="retomar"]{opacity:1;}
+  .pausa-btn:hover{color:var(--teal);}
+  .pausa-estado{color:var(--amarelo);font-size:var(--fs-xs);margin-top:2px;}
+  .pausa-estado.pausado{color:var(--teal);}
 
   /* agentes vivos da linha (subagentes: implementer, reviewer…) */
   .agentes{margin-top:3px;display:flex;flex-direction:column;gap:1px;}
@@ -418,6 +424,20 @@ const ehAtual = (p, currentProject) => p.projectId === currentProject || p.proje
 const normCaminho = s => String(s || '').replace(/\\/g, '/').replace(/\/+$/, '').toLowerCase();
 const avisoBash = () => `<span class="status-warn" title="checkbox edited via Bash — use Edit/Write instead">${ICON_WARN}</span>`;
 
+// Pausa (pausa.js, lado da extensão): ⏸ discreto (aparece no hover), ▶ quando
+// pausada; estado "pausing…" até a sessão parar e tudo que rodava terminar.
+function botaoPausa(ids, pausada) {
+  const acao = pausada ? 'retomar' : 'pausar';
+  const dica = pausada ? 'Resume: tell the session(s) to continue' : 'Pause: let running work finish, start nothing new, then stop (to reload VS Code safely)';
+  return `<span class="pausa-btn" data-acao="${acao}" data-ids="${escapeHtml(ids.join(','))}" title="${dica}" role="button" tabindex="0">${pausada ? '▶' : '⏸'}</span>`;
+}
+function linhaPausa(pz) {
+  if (!pz) return '';
+  if (pz.estado === 'pausado') return '<div class="pausa-estado pausado">⏸ paused · safe to reload</div>';
+  const coisas = [pz.agentes ? `${pz.agentes} agent${pz.agentes > 1 ? 's' : ''}` : '', pz.shells ? `${pz.shells} background command${pz.shells > 1 ? 's' : ''}` : ''].filter(Boolean);
+  return `<div class="pausa-estado">⏸ pausing…${coisas.length ? ` (${coisas.join(', ')} running)` : ''}</div>`;
+}
+
 function cardProjeto(p, currentProject, primeiro) {
   const progress = progressoEfetivo(p);
   const ultima = ultimaAtividade(p);
@@ -447,9 +467,11 @@ function cardProjeto(p, currentProject, primeiro) {
         <div class="status-nome">${escapeHtml(p.projectName)} <span class="status-tempo">${tempoRelativo(ultima)}</span></div>
         <div class="status-info">${infoLinha(p)}</div>
         ${linhasAgentes(p)}
+        ${linhaPausa(p.pausa)}
         ${barra}
       </div>
       ${aviso}
+      ${botaoPausa([p.projectId], !!p.pausa)}
     </div>`;
 }
 
@@ -467,7 +489,9 @@ function linhaMembro(p, currentProject, nome) {
         <div class="status-nome">${escapeHtml(nome)} <span class="status-tempo">${tempoRelativo(ultima)}</span></div>
         <div class="status-info">${infoLinha(p)}</div>
         ${linhasAgentes(p)}
+        ${linhaPausa(p.pausa)}
       </div>
+      ${botaoPausa([p.projectId], !!p.pausa)}
       ${progress ? `<span class="status-pct">${progress.percent || 0}%</span>` : ''}
       ${(p.progress && p.progress.viaBash) ? avisoBash() : ''}
     </div>`;
@@ -499,6 +523,7 @@ function cardGrupo(g, currentProject, primeiro) {
           ${resumo}
         </div>
         ${aviso}
+        ${botaoPausa(g.membros.map(p => p.projectId), g.membros.some(p => p.pausa))}
         <span class="grupo-seta" aria-hidden="true">${dobrado ? '▸' : '▾'}</span>
       </div>
       ${membros}
@@ -906,6 +931,8 @@ function abrirLinha(item) {
   });
 }
 function acaoDaLista(alvo) {
+  const botao = alvo.closest('.pausa-btn');
+  if (botao) return vscode.postMessage({ type: botao.dataset.acao, projectIds: botao.dataset.ids.split(',') });
   const cabeca = alvo.closest('.grupo-cabeca');
   if (cabeca) return alternarGrupo(cabeca.dataset.grupo);
   abrirLinha(alvo.closest('.status-row, .grupo-membro'));
