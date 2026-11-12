@@ -580,4 +580,4 @@ git commit -m "feat(panel): Task N/total with agent state, and live agent lines"
 
 - [x] **Step 1: CHANGELOG and README** — CHANGELOG 1.2.0: "Agent view: each row shows `Task N/total · implementing / in review / fixing` and its live subagents (new `agentes-hook.js` on PreToolUse(Agent), SubagentStart, SubagentStop, Stop). Agents map to worktrees through descriptions like `governance-shell: Task 12 implement – title`." README: add `agentes-hook.js` to the files list (now 5) and its row to the hooks table; a "What it shows" bullet for agents.
 - [x] **Step 2: Full suite, package, install, push** — `node test-all.js`, package + `code --install-extension --force`, commit, `git push origin main`, CI green.
-- [ ] **Step 3: Real check** — after a reload Nik clicks **Update hooks**; `~/.claude/settings.json` gains the 4 entries; once a CI session launches an agent, `_agentes.json` fills and the row shows it.
+- [x] **Step 3: Real check** — after a reload Nik clicks **Update hooks**; `~/.claude/settings.json` gains the 4 entries; once a CI session launches an agent, `_agentes.json` fills and the row shows it.
