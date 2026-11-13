@@ -15,20 +15,35 @@ function lerPrograma(raiz) {
 
 // Cópia mais nova do plano entre o checkout principal e cada worktree em
 // .worktrees/: em andamento conta do worktree; mergeado (worktree já
-// removido), do main.
+// removido), do main. Cópia de worktree IGUAL à do main não está em
+// andamento: todo worktree recém-criado tem cópia de todo plano com mtime
+// novo, e ganhava todos (achado 2026-11-12, Governance Reconciliation).
+// Nem cópia com MENOS ticks que o main: worktree de base velha está atrás
+// do main, não à frente (tick só aumenta).
+const texto = f => { try { return fs.readFileSync(f, 'utf8').replace(/\r\n/g, '\n'); } catch (e) { return null; } };
+const ticks = t => (t.match(/^\s*[-*] \[[xX]\]/gm) || []).length;
 function copiaMaisNova(raiz, rel) {
-  const candidatos = [{ arquivo: path.join(raiz, rel), worktree: null }];
+  const doMain = path.join(raiz, rel);
+  const candidatos = [{ arquivo: doMain, worktree: null }];
   try {
     for (const w of fs.readdirSync(path.join(raiz, '.worktrees'), { withFileTypes: true })) {
       if (w.isDirectory()) candidatos.push({ arquivo: path.join(raiz, '.worktrees', w.name, rel), worktree: w.name });
     }
   } catch (e) { /* sem worktrees */ }
+  let original; // texto do main, lido só se algum worktree tiver o plano
   let melhor = null, mtime = -1;
   for (const c of candidatos) {
-    try {
-      const m = fs.statSync(c.arquivo).mtimeMs;
-      if (m > mtime) { mtime = m; melhor = c; }
-    } catch (e) { /* não existe nesse worktree */ }
+    let m;
+    try { m = fs.statSync(c.arquivo).mtimeMs; } catch (e) { continue; /* não existe nesse worktree */ }
+    if (m <= mtime) continue;
+    if (c.worktree) {
+      if (original === undefined) original = texto(doMain);
+      if (original !== null) {
+        const t = texto(c.arquivo);
+        if (t === original || (t !== null && ticks(t) < ticks(original))) continue;
+      }
+    }
+    mtime = m; melhor = c;
   }
   return melhor;
 }
@@ -44,7 +59,11 @@ function progressoPrograma(prog, raiz, lerPlano, temAgentes = () => false) {
   }
   const feitos = planos.filter(p => p.progresso.completed === p.progresso.total).length;
   const abertos = planos.filter(p => p.progresso.completed < p.progresso.total);
-  const atual = abertos.find(p => p.worktree && temAgentes(p.worktree)) || abertos[0] || null;
+  // ativo: escolhido por ter agente vivo no worktree ("building:"); senão é
+  // só o próximo plano aberto ("next:") — antes dizia "building:" num plano
+  // parado (achado 2026-11-12).
+  const comAgente = abertos.find(p => p.worktree && temAgentes(p.worktree));
+  const atual = comAgente ? { ...comAgente, ativo: true } : abertos[0] ? { ...abertos[0], ativo: false } : null;
   return {
     nome: prog.name || 'Programme',
     subprojetos: { feitos, total: Math.max(Number(prog.subprojects) || 0, prog.plans.length) },

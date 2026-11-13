@@ -51,6 +51,45 @@ try {
   assert.strictEqual(r.atual.worktree, 'policy-model-2');
   assert.strictEqual(r.atual.progresso.completed, 3);
 
+  // Worktree criado agora do main (achado 2026-11-12, Governance
+  // Reconciliation): ele tem cópia IDÊNTICA de todo plano com mtime novo.
+  // Cópia igual à do main não é "em andamento" — conta do main, worktree null.
+  const igual = (de, para, quando) => {
+    const f = path.join(raiz, para, P, path.basename(de));
+    fs.mkdirSync(path.dirname(f), { recursive: true });
+    fs.copyFileSync(path.join(raiz, de), f);
+    fs.utimesSync(f, quando / 1000, quando / 1000);
+  };
+  igual(`${P}/shell.md`, '.worktrees/ui-nits', T);
+  igual(`${P}/part2.md`, '.worktrees/ui-nits', T);
+  assert.deepStrictEqual(copiaMaisNova(raiz, `${P}/shell.md`), { arquivo: path.join(raiz, P, 'shell.md'), worktree: null }, 'cópia idêntica e mais nova no worktree não rouba o plano');
+  // ...e não esconde a edição de verdade em policy-model-2 (mais velha que ui-nits).
+  assert.deepStrictEqual(copiaMaisNova(raiz, `${P}/part2.md`), { arquivo: path.join(raiz, '.worktrees', 'policy-model-2', P, 'part2.md'), worktree: 'policy-model-2' }, 'edição real ganha da cópia idêntica mais nova');
+  // Mesmo texto com CRLF (checkout no Windows) continua "igual".
+  const crlf = path.join(raiz, '.worktrees', 'ui-nits', P, 'part1.md');
+  fs.writeFileSync(crlf, fs.readFileSync(path.join(raiz, P, 'part1.md'), 'utf8').replace(/\n/g, '\r\n'));
+  assert.strictEqual(copiaMaisNova(raiz, `${P}/part1.md`).worktree, null, 'só fim de linha diferente: igual');
+  // Worktree velho com cópia desatualizada (o main andou depois): main ganha.
+  escrever('', 'part4.md', 3, 4, T - 1e5);
+  escrever('.worktrees/parado', 'part4.md', 1, 4, T - 4e6);
+  assert.strictEqual(copiaMaisNova(raiz, `${P}/part4.md`).worktree, null, 'cópia velha diferente não ganha do main mais novo');
+  // Worktree de base velha (menos ticks que o main) mas mtime mais novo: está
+  // atrás do main, não à frente (caso real: part2 100/105 no worktree, 101 no main).
+  escrever('', 'part5.md', 4, 6, T - 4e6);
+  escrever('.worktrees/base-velha', 'part5.md', 3, 6, T);
+  assert.strictEqual(copiaMaisNova(raiz, `${P}/part5.md`).worktree, null, 'menos ticks que o main: main ganha');
+  // Plano reescrito no worktree (mesmos ticks, texto diferente): conta do worktree.
+  fs.appendFileSync(path.join(raiz, '.worktrees', 'base-velha', P, 'part5.md'), '- [x] **Step 7: extra**\n');
+  fs.utimesSync(path.join(raiz, '.worktrees', 'base-velha', P, 'part5.md'), T / 1000, T / 1000);
+  assert.strictEqual(copiaMaisNova(raiz, `${P}/part5.md`).worktree, 'base-velha', 'mesmos ou mais ticks e texto diferente: worktree');
+
+  // "building:" com agentes vivos só no worktree que não mexeu no plano: não aponta pra lá.
+  fs.writeFileSync(path.join(raiz, '.symbiont', 'programme.json'), JSON.stringify({ name: 'W', plans: [`${P}/part2.md`] }));
+  const comUiNits = progressoPrograma(lerPrograma(raiz), raiz, progressoDoPlano, w => w === 'ui-nits');
+  assert.strictEqual(comUiNits.atual.worktree, 'policy-model-2', 'agentes em ui-nits não tornam ui-nits o plano atual');
+  assert.strictEqual(comUiNits.atual.ativo, false, 'sem agente no worktree do plano: "next", não "building"');
+  assert.strictEqual(progressoPrograma(lerPrograma(raiz), raiz, progressoDoPlano, w => w === 'policy-model-2').atual.ativo, true);
+
   // Preferência por plano com agentes vivos no worktree.
   escrever('.worktrees/outro', 'part3.md', 0, 2, T);
   fs.writeFileSync(path.join(raiz, '.symbiont', 'programme.json'), JSON.stringify({ name: 'X', plans: [`${P}/part2.md`, `${P}/part3.md`] }));

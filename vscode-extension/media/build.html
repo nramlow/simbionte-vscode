@@ -751,7 +751,7 @@ function renderPrograma(g) {
   const parte = a && !tudo ? `sub-project ${Math.min(sp.feitos + 1, sp.total)}/${sp.total}` : `${sp.feitos}/${sp.total} sub-projects`;
   document.getElementById('steps').textContent = `${g.nome} · ${parte} · ${g.passos.feitos}/${total} steps`;
   document.getElementById('reactorLabel').innerHTML = a && a.progresso.activeLabel
-    ? `building: <b>${a.worktree ? escapeHtml(a.worktree) + ' › ' : ''}${escapeHtml(rotuloComTarefa(a, a.progresso))}</b>`
+    ? `${a.ativo ? 'building' : 'next'}: <b>${a.worktree ? escapeHtml(a.worktree) + ' › ' : ''}${escapeHtml(rotuloComTarefa(a, a.progresso))}</b>`
     : (tudo ? 'programme complete' : 'next sub-project not planned yet');
 }
 

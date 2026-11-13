@@ -32,7 +32,7 @@ const main = { projectId: 'Communication-Intelligence', projectName: 'Communicat
   progress: { percent: 0, completed: 0, total: 20, activeLabel: 'Task 1 › Step 1: unrelated', updatedAt: agora } };
 const programa = {
   nome: 'Governance redesign', subprojetos: { feitos: 2, total: 8 }, passos: { feitos: 255, total: 311 },
-  atual: { rel: 'x.md', worktree: 'policy-model-2',
+  atual: { rel: 'x.md', worktree: 'policy-model-2', ativo: true,
     progresso: { percent: 47, completed: 49, total: 105, activeLabel: 'Task 10 › Step 1: Write the failing test', updatedAt: agora,
       tarefas: { total: 20, feitas: 9, atual: { numero: 10, titulo: 'Access reads assignments', passos: 5, feitos: 0 } } },
     agentes: [{ id: 'a', tipo: 'implementer', descricao: '', inicio: agora, convencao: { worktree: 'policy-model-2', tarefa: 10, papel: 'implement', titulo: '' } }] },
@@ -42,6 +42,11 @@ const anel = () => [elementos.pct.textContent, elementos.steps.textContent, elem
 ctx.renderReator([{ ...main, programa }], 'Communication-Intelligence');
 assert.deepStrictEqual(anel(), ['82%', 'Governance redesign · sub-project 3/8 · 255/311 steps',
   'building: <b>policy-model-2 › Task 10/20 · implementing › Step 1/5: Write the failing test</b>'], 'programa ganha do plano solto do main');
+
+// Ninguém trabalhando num plano (sem agente no worktree): "next:", não "building:".
+const parado = { ...programa.atual, worktree: null, ativo: false, agentes: undefined };
+ctx.renderReator([{ ...main, programa: { ...programa, atual: parado } }], 'Communication-Intelligence');
+assert.strictEqual(anel()[2], 'next: <b>Task 10/20 › Step 1/5: Write the failing test</b>', 'plano parado não é "building"');
 
 ctx.renderReator([{ ...main, programa: { ...programa, subprojetos: { feitos: 3, total: 8 }, passos: { feitos: 311, total: 311 }, atual: null } }], 'Communication-Intelligence');
 assert.deepStrictEqual(anel(), ['100%', 'Governance redesign · 3/8 sub-projects · 311/311 steps', 'next sub-project not planned yet']);
