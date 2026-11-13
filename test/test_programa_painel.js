@@ -53,6 +53,33 @@ assert.deepStrictEqual(anel(), ['100%', 'Governance redesign · 3/8 sub-projects
 ctx.renderReator([{ ...main, programa: { ...programa, subprojetos: { feitos: 8, total: 8 }, passos: { feitos: 900, total: 900 }, atual: null } }], 'Communication-Intelligence');
 assert.deepStrictEqual(anel(), ['100%', 'Governance redesign · 8/8 sub-projects · 900/900 steps', 'programme complete']);
 
+// Com status por sub-projeto: lista aberta + concluídos dobrados; "building:" = in-progress.
+const comStatus = {
+  ...programa, subprojetos: { feitos: 1, total: 3 }, passos: { feitos: 105, total: 243 }, atualizadoEm: new Date(agora - 2 * 3600e3).toISOString(),
+  lista: [
+    { titulo: 'Shell and tables', status: 'done', etapa: 'merged', tarefa: { n: 20, total: 20 }, passos: { feitos: 134, total: 134 } },
+    { titulo: 'Policy model, part 2', status: 'on-hold', etapa: 'on-hold', tarefa: { n: 20, total: 20 }, passos: { feitos: 101, total: 105 }, nota: 'Task 20 on hold by Nik' },
+    { titulo: 'Upstream <block>', status: 'in-progress', etapa: 'planning', worktree: 'upstream-block-plan', tarefa: { n: 0, total: 12 }, passos: { feitos: 0, total: 72 }, bloqueio: 'legal-hold fix' },
+  ],
+  trabalhos: [{ titulo: 'Legal hold fix', status: 'in-progress', etapa: 'implementing', dono: 'Gov 3' }],
+  construindo: [{ titulo: 'Legal hold fix', status: 'in-progress', etapa: 'implementing', dono: 'Gov 3', vivo: true }, { titulo: 'Upstream <block>', etapa: 'planning' }],
+};
+ctx.renderReator([{ ...main, programa: comStatus }], 'Communication-Intelligence');
+assert.strictEqual(anel()[2], 'building: <b>Legal hold fix</b> · implementing · Gov 3 · +1 more');
+const lista = elementos.progLista;
+assert.strictEqual(lista.hidden, false);
+assert.ok(lista.innerHTML.includes('sub-projects · status 2h ago') && lista.innerHTML.includes('2 open · 1 done'), 'cabeçalho com idade e contagem');
+assert.ok(lista.innerHTML.indexOf('Upstream &lt;block&gt;') < lista.innerHTML.indexOf('Policy model, part 2'), 'em curso antes de on hold; HTML escapado');
+assert.ok(lista.innerHTML.includes('Task 20/20 · on hold · 101/105 steps'), 'formato do Nik');
+assert.ok(lista.innerHTML.includes('blocked by legal-hold fix'));
+assert.ok(lista.innerHTML.includes('Task 0/12 · planning · 0/72 steps'));
+assert.ok(/<details[^>]*><summary>1 done: Shell and tables<\/summary>/.test(lista.innerHTML), 'concluídos dobrados');
+assert.ok(lista.innerHTML.includes('work items') && lista.innerHTML.includes('implementing · Gov 3'));
+ctx.renderReator([{ ...main, programa: { ...comStatus, construindo: [] } }], 'Communication-Intelligence');
+assert.strictEqual(anel()[2], 'nothing in progress');
+ctx.renderReator([main], 'Communication-Intelligence');
+assert.strictEqual(elementos.progLista.hidden, true, 'sem programa: lista some');
+
 ctx.renderReator([main], 'Communication-Intelligence');
 assert.strictEqual(elementos.steps.textContent, '0 / 20 steps', 'sem programa: como antes');
 

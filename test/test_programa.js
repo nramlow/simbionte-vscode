@@ -96,6 +96,41 @@ try {
   assert.strictEqual(progressoPrograma(lerPrograma(raiz), raiz, progressoDoPlano, w => w === 'outro').atual.rel, `${P}/part3.md`, 'agente vivo no worktree ganha');
   assert.deepStrictEqual(progressoPrograma(lerPrograma(raiz), raiz, progressoDoPlano).subprojetos, { feitos: 0, total: 2 }, 'sem subprojects: conta os planos');
 
+  // subprojectStatus/workItems (2026-11-13): status vem do arquivo, contagem
+  // do plano; worktree explícito escolhe a cópia mesmo sendo mais velha.
+  escrever('.worktrees/retencao-v2', 'part2.md', 0, 9, T - 9e7);
+  fs.writeFileSync(path.join(raiz, '.symbiont', 'programme.json'), JSON.stringify({
+    name: 'S', plans: [`${P}/shell.md`, `${P}/part2.md`, `${P}/part4.md`, `${P}/velho.md`],
+    subprojectStatus: [
+      { plan: `${P}/shell.md`, title: 'Shell', status: 'done', stage: 'merged', note: 'Merged.' },
+      { plan: `${P}/part2.md`, title: 'Retention v2', status: 'waiting', stage: 'plan-review', worktree: 'retencao-v2', blockedBy: 'decisions' },
+      { plan: `${P}/part4.md`, title: 'Part 4', status: 'in-progress', stage: 'implementing' },
+      { plan: `${P}/velho.md`, title: 'Old', status: 'superseded' },
+    ],
+    workItems: [
+      { title: 'Fix branch', status: 'in-progress', stage: 'fixing', owner: 'Gov 3', worktree: 'fix-x' },
+      { title: 'Favicon', status: 'ready', stage: 'waiting' },
+      { status: 'done' }, // sem título: ignorado
+    ],
+    updatedAt: '2026-11-13T05:00:00Z',
+  }));
+  const s = progressoPrograma(lerPrograma(raiz), raiz, progressoDoPlano, w => w === 'fix-x');
+  assert.deepStrictEqual(s.lista.map(i => [i.titulo, i.status, i.etapa, i.worktree, i.passos && `${i.passos.feitos}/${i.passos.total}`]), [
+    ['Shell', 'done', 'merged', null, '4/4'],
+    ['Retention v2', 'waiting', 'plan-review', 'retencao-v2', '0/9'],
+    ['Part 4', 'in-progress', 'implementing', null, '3/4'],
+    ['Old', 'superseded', null, null, null],
+  ], 'worktree do status escolhe a cópia; sem worktree, main (part4 tem cópia em "parado", ignorada)');
+  assert.deepStrictEqual(s.lista[1].tarefa, { n: 0, total: 1 }, 'nada marcado: Task 0/N');
+  assert.deepStrictEqual(s.lista[0].tarefa, { n: 1, total: 1 }, 'tudo marcado: Task N/N');
+  assert.strictEqual(s.lista[1].bloqueio, 'decisions');
+  assert.deepStrictEqual(s.trabalhos.map(t => t.titulo), ['Fix branch', 'Favicon']);
+  assert.deepStrictEqual(s.construindo.map(i => [i.titulo, i.vivo]), [['Fix branch', true], ['Part 4', false]], 'in-progress, com agente vivo primeiro');
+  assert.deepStrictEqual(s.subprojetos, { feitos: 1, total: 3 }, 'done pelo status; superseded fora do total');
+  assert.deepStrictEqual(s.passos, { feitos: 7, total: 17 }, '4/4 + 0/9 + 3/4');
+  assert.strictEqual(s.atualizadoEm, '2026-11-13T05:00:00Z');
+  assert.strictEqual(r.lista, undefined, 'sem subprojectStatus: nada novo no resultado');
+
   // Tudo concluído: atual null.
   fs.writeFileSync(path.join(raiz, '.symbiont', 'programme.json'), JSON.stringify({ name: 'Y', plans: [`${P}/shell.md`] }));
   assert.strictEqual(progressoPrograma(lerPrograma(raiz), raiz, progressoDoPlano).atual, null);
